@@ -1,0 +1,201 @@
+================================================================================
+  DOCUMENTO DE ESCOPO — SOLUÇÃO DE AGENTES DE IA PARA CORRETORA DE SEGUROS
+================================================================================
+
+Versão:       1.0
+Data:         Fevereiro de 2026
+Status:       Rascunho para validação interna
+
+________________________________________________________________________________
+
+1. VISÃO GERAL DO PROJETO
+________________________________________________________________________________
+
+A corretora opera hoje com processos 100% manuais. Cada renovação de apólice e
+cada abertura de sinistro depende de uma pessoa fazendo tudo na mão: ligando,
+enviando e-mail, preenchendo sistema e cobrando documentos. Isso gera três
+consequências diretas:
+
+  - CUSTO ALTO: o time gasta tempo em tarefas repetitivas e de baixo valor
+    agregado que poderiam ser automatizadas.
+
+  - RECEITA PERDIDA: apólices vencem sem que ninguém tenha tempo de abordar o
+    cliente a tempo, reduzindo a taxa de renovação.
+
+  - EXPERIÊNCIA RUIM: o cliente espera horas ou dias para abrir um sinistro ou
+    receber uma proposta de renovação, num mercado onde velocidade é diferencial.
+
+________________________________________________________________________________
+
+2. OBJETIVOS DO PROJETO
+________________________________________________________________________________
+
+O projeto possui três objetivos estratégicos de peso igual:
+
+  2.1 REDUZIR CUSTO OPERACIONAL
+      Automatizar tarefas repetitivas dos processos de renovação e sinistros,
+      liberando a equipe humana para focar em exceções, negociações complexas
+      e relacionamento com clientes.
+
+  2.2 AUMENTAR A TAXA DE RENOVAÇÃO DE APÓLICES
+      Garantir que nenhuma apólice passe despercebida próxima ao vencimento,
+      com abordagem proativa e personalizada ao cliente antes do prazo final.
+
+  2.3 MELHORAR A EXPERIÊNCIA DO CLIENTE
+      Reduzir drasticamente o tempo de resposta em renovações e abertura de
+      sinistros, oferecendo atendimento imediato via WhatsApp, 24 horas por dia.
+
+  RESULTADO ESPERADO: uma operação que escala sem crescer proporcionalmente em
+  headcount, com clientes mais satisfeitos e menos apólices perdidas por abandono.
+
+________________________________________________________________________________
+
+3. ESCOPO DA SOLUÇÃO
+________________________________________________________________________________
+
+A solução consiste em dois agentes de IA operando via WhatsApp Business, com
+humanos ainda no loop para decisões finais no MVP.
+
+  3.1 AGENTE DE RENOVAÇÃO AUTOMÁTICA DE APÓLICES
+      - Monitora apólices com vencimento nos próximos 30 dias
+      - Gera e envia proposta personalizada ao cliente via WhatsApp
+      - Responde dúvidas simples (valor, cobertura, forma de pagamento)
+      - Encaminha cliente aquecido ao corretor humano para fechamento
+      - Envia lembretes automáticos em caso de não resposta
+
+  3.2 AGENTE DE ATIVAÇÃO DE SINISTROS
+      - Recebe aviso de sinistro via WhatsApp
+      - Conduz conversa guiada para coleta de informações (FNOL)
+      - Solicita fotos e documentos necessários
+      - Classifica o tipo de sinistro automaticamente
+      - Gera protocolo numerado para o cliente em menos de 3 minutos
+      - Para sinistros simples: aciona prestador automaticamente
+      - Para sinistros complexos: entrega caso organizado ao time interno
+
+  FORA DO ESCOPO DO MVP:
+      - Emissão automática de apólices (sem aprovação humana)
+      - Integração com múltiplas seguradoras via API
+      - App mobile próprio
+      - Dashboard de gestão (previsto para fase posterior ao MVP)
+
+________________________________________________________________________________
+
+4. MILESTONES DE FUNCIONALIDADE
+________________________________________________________________________________
+
+Horizonte total: 3 meses (MVP)
+
+  ─────────────────────────────────────────────────────────────────────────────
+  M1 | FUNDAÇÃO E INTEGRAÇÃO                               Semanas 1 a 3
+  ─────────────────────────────────────────────────────────────────────────────
+
+  Objetivo: estruturar a base antes de qualquer automação.
+
+  Atividades:
+    - Mapeamento dos fluxos reais da corretora (renovação e sinistros)
+    - Organização e digitalização da base de apólices em banco de dados
+    - Configuração do canal WhatsApp Business API
+    - Definição das regras de negócio (quando escalar para humano, etc.)
+    - Validação do fluxo mapeado com a equipe da corretora
+
+  Entregáveis:
+    [x] Base de dados de apólices consultável
+    [x] Canal WhatsApp Business configurado e testado
+    [x] Diagrama de fluxo validado pela equipe
+
+  ─────────────────────────────────────────────────────────────────────────────
+  M2 | AGENTE DE RENOVAÇÃO (MODO ASSISTIDO)                Semanas 4 a 8
+  ─────────────────────────────────────────────────────────────────────────────
+
+  Objetivo: nenhuma apólice vencer sem abordagem ao cliente.
+
+  Atividades:
+    - Desenvolvimento do agente de monitoramento de vencimentos
+    - Criação dos fluxos de conversa no WhatsApp (proposta, FAQ, lembrete)
+    - Integração com base de dados de apólices
+    - Configuração de regras de escalonamento para corretor humano
+    - Piloto com segmento de seguros auto (2 semanas de operação real)
+
+  Entregáveis:
+    [x] Agente de renovação em produção para carteira piloto
+    [x] Relatório das primeiras 2 semanas de operação (conversas, taxa de
+        resposta, apólices renovadas via agente)
+
+  Critério de sucesso: pelo menos 70% das apólices do piloto abordadas
+  automaticamente antes do vencimento.
+
+  ─────────────────────────────────────────────────────────────────────────────
+  M3 | AGENTE DE SINISTROS (TRIAGEM E ABERTURA)            Semanas 7 a 10
+  ─────────────────────────────────────────────────────────────────────────────
+
+  Objetivo: cliente nunca mais espera para abrir um sinistro.
+
+  Atividades:
+    - Desenvolvimento do fluxo de coleta de FNOL via WhatsApp
+    - Criação da lógica de classificação de tipos de sinistro
+    - Geração automática de protocolo e confirmação ao cliente
+    - Integração com prestadores para sinistros simples (vidros, assistência)
+    - Estruturação do handoff para o time interno (sinistros complexos)
+
+  Entregáveis:
+    [x] Agente de sinistros em produção para os tipos mais comuns da carteira
+    [x] Protocolo automático gerado e enviado ao cliente em até 3 minutos
+    [x] Cliente sempre notificado sobre status do sinistro
+
+  Critério de sucesso: tempo médio de abertura de sinistro inferior a 5 minutos.
+
+  ─────────────────────────────────────────────────────────────────────────────
+  MARCO FINAL | ENTREGA DO MVP                             Fim do mês 3
+  ─────────────────────────────────────────────────────────────────────────────
+
+  Ao final dos 3 meses, a corretora terá dois agentes em operação real, com
+  humanos no loop para decisões finais, mas liberados de toda a parte
+  operacional repetitiva.
+
+  Métricas de avaliação do MVP:
+    - Nº de apólices renovadas com auxílio do agente
+    - Redução no tempo médio de atendimento de renovação
+    - Tempo médio de abertura de sinistro (antes vs. depois)
+    - Taxa de satisfação do cliente (CSAT) no atendimento via agente
+    - Horas de trabalho manual economizadas por semana
+
+________________________________________________________________________________
+
+5. PREMISSAS E DEPENDÊNCIAS
+________________________________________________________________________________
+
+  - A corretora disponibilizará acesso à base de apólices para migração
+  - Será necessário um número de WhatsApp Business dedicado ao projeto
+  - A equipe da corretora participará das validações de fluxo no M1
+  - Decisões de emissão e encerramento de sinistro permanecem com humanos no MVP
+  - Integrações com sistemas de seguradoras estão fora do escopo do MVP
+
+________________________________________________________________________________
+
+6. RISCOS IDENTIFICADOS
+________________________________________________________________________________
+
+  RISCO                              IMPACTO    MITIGAÇÃO
+  ─────────────────────────────────────────────────────────────────────────────
+  Base de apólices desorganizada     Alto       Reservar semana extra no M1
+  Resistência da equipe à mudança    Médio      Envolver equipe desde o M1
+  Aprovação do WhatsApp Business     Médio      Iniciar processo na semana 1
+  Fluxos de sinistro muito variados  Médio      Focar nos 3 tipos mais comuns
+
+________________________________________________________________________________
+
+7. PRÓXIMOS PASSOS
+________________________________________________________________________________
+
+  1. Validar este documento de escopo com todos os stakeholders
+  2. Definir responsável técnico do projeto na corretora
+  3. Levantar e exportar a base de apólices atual
+  4. Solicitar número de WhatsApp Business e iniciar aprovação Meta
+  5. Agendar kickoff oficial do M1
+
+________________________________________________________________________________
+
+  Documento elaborado como base para discussão e refinamento com a equipe.
+  Sujeito a alterações após validação dos fluxos no M1.
+
+================================================================================

@@ -1,0 +1,67 @@
+flowchart TD
+    WA["📱 WhatsApp\nCliente"]
+    GW["🔀 API Gateway"]
+
+    ORCH["🧠 Agente Orquestrador
+    ─────────────────
+    • Detecta intenção
+    • Gerencia estado
+    • Controla handoffs"]
+
+    RENEW["📋 Agente de Renovação
+    ─────────────────
+    Tools:
+    · query_policies
+    · evaluate_renewal
+    · get_insurer_quote
+    · send_proposal
+    · schedule_followup
+    · escalate_to_broker"]
+
+    CLAIMS["🚨 Agente de Sinistros
+    ─────────────────
+    Tools:
+    · start_fnol_flow
+    · classify_claim
+    · request_documents
+    · generate_protocol
+    · trigger_assistance
+    · escalate_to_adjuster"]
+
+    FAQ["💬 FAQ Handler
+    ─────────────────
+    Responde dúvidas
+    gerais com LLM"]
+
+    HUMAN["👤 Corretor Humano
+    ─────────────────
+    Recebe handoff
+    e age manualmente"]
+
+    REDIS[("Redis\nestado")]
+    PG[("PostgreSQL\ndados")]
+
+    WA -->|"mensagem"| GW --> ORCH
+
+    ORCH -->|"intent = renewal"| RENEW
+    ORCH -->|"intent = claim"| CLAIMS
+    ORCH -->|"intent = faq"| FAQ
+    ORCH -->|"intent = unknown"| HUMAN
+
+    RENEW -->|"aceite / VIP / sem resposta"| HUMAN
+    CLAIMS -->|"sinistro complexo / crítico"| HUMAN
+
+    RENEW <-->|"lê e salva estado"| REDIS
+    CLAIMS <-->|"lê e salva estado"| REDIS
+    ORCH <-->|"lê e salva estado"| REDIS
+
+    RENEW -->|"persiste dados"| PG
+    CLAIMS -->|"persiste dados"| PG
+
+    HUMAN -->|"responde ao cliente"| WA
+
+    style ORCH fill:#4A90D9,color:#fff
+    style RENEW fill:#27AE60,color:#fff
+    style CLAIMS fill:#E74C3C,color:#fff
+    style FAQ fill:#8E44AD,color:#fff
+    style HUMAN fill:#F39C12,color:#fff

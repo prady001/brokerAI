@@ -1,0 +1,50 @@
+flowchart TD
+    MSG["📱 Cliente envia mensagem\nno WhatsApp"]
+    DETECT["Orquestrador detecta\nintent = claim"]
+    FNOL["Coleta FNOL\nguiada pelo agente"]
+
+    F1["Tipo do sinistro"]
+    F2["Data e hora"]
+    F3["Local do ocorrido"]
+    F4["Descrição detalhada"]
+    F5["Terceiros envolvidos?"]
+    F6["Boletim de ocorrência?"]
+
+    CLASSIFY["Classifica sinistro\ntipo + severidade"]
+
+    SIMPLE["🟢 SIMPLES\nvidros / assistência 24h"]
+    COMPLEX["🟡 COMPLEXO\ncolisão / furto / incêndio"]
+    CRITICAL["🔴 CRÍTICO\nacidente com vítima"]
+
+    ASSIST["Aciona prestador\nautomaticamente"]
+    ADJUSTER["Notifica regulador\ncom dossiê completo"]
+    MANAGER["🚨 Alerta gestor\nIMMEDIATAMENTE"]
+
+    PROTO["Gera protocolo\nnumerado"]
+    DOCS["Envia checklist\nde documentos"]
+    UPLOAD["Aguarda uploads\ndo cliente"]
+    STATUS["Atualiza status\nproativamente"]
+
+    MSG --> DETECT --> FNOL
+    FNOL --> F1 --> F2 --> F3 --> F4 --> F5 --> F6
+    F6 --> CLASSIFY
+
+    CLASSIFY --> SIMPLE
+    CLASSIFY --> COMPLEX
+    CLASSIFY --> CRITICAL
+
+    SIMPLE --> ASSIST
+    COMPLEX --> ADJUSTER
+    CRITICAL --> MANAGER
+
+    ASSIST --> PROTO
+    ADJUSTER --> PROTO
+    MANAGER --> PROTO
+
+    PROTO --> DOCS --> UPLOAD --> STATUS
+
+    style SIMPLE fill:#27AE60,color:#fff
+    style COMPLEX fill:#F39C12,color:#fff
+    style CRITICAL fill:#E74C3C,color:#fff
+    style MANAGER fill:#E74C3C,color:#fff
+    style PROTO fill:#4A90D9,color:#fff

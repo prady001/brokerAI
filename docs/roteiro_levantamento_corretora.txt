@@ -1,0 +1,233 @@
+================================================================================
+  ROTEIRO DE LEVANTAMENTO — SOLUÇÃO DE AGENTES DE IA PARA CORRETORA DE SEGUROS
+================================================================================
+
+Objetivo:    Levantar as informações críticas antes de iniciar o desenvolvimento
+Com quem:    Gestor(a) da corretora + responsável operacional + (se possível)
+             5 a 10 clientes reais
+Formato:     Reunião presencial ou videoconferência de 60 a 90 minutos
+             + entrevistas rápidas com clientes (15 min cada)
+
+________________________________________________________________________________
+
+BLOCO 1 — DADOS E SISTEMAS
+"Onde estão os dados das apólices hoje e em que estado estão?"
+________________________________________________________________________________
+
+Contexto: esse bloco define o prazo real do projeto. Responda com o máximo de
+detalhe possível — não existe resposta certa ou errada.
+
+PERGUNTA 1.1
+  Onde ficam registradas as apólices ativas hoje?
+  (  ) Planilha Excel / Google Sheets
+  (  ) Sistema próprio ou ERP (qual? ___________________________)
+  (  ) Sistema da seguradora (acessado manualmente)
+  (  ) Misto — parte em sistema, parte em planilha
+  (  ) Outro: _______________________________________________
+
+PERGUNTA 1.2
+  Quais informações estão disponíveis por apólice no registro atual?
+  Marque o que existe:
+  (  ) Nome e CPF/CNPJ do cliente
+  (  ) Data de vencimento da apólice
+  (  ) Valor do prêmio
+  (  ) Tipo de seguro (auto, vida, patrimonial, etc.)
+  (  ) Histórico de sinistros do cliente
+  (  ) Histórico de pagamentos
+  (  ) Contato do cliente (telefone / e-mail / WhatsApp)
+  (  ) Documento da apólice em PDF
+
+PERGUNTA 1.3
+  É possível exportar a base de apólices hoje? Em qual formato?
+  ___________________________________________________________
+
+PERGUNTA 1.4
+  O sistema atual tem alguma API ou forma de integração técnica?
+  (  ) Sim — tem API documentada
+  (  ) Sim — mas sem documentação, precisaria investigar
+  (  ) Não — só acesso manual pela tela
+  (  ) Não sei
+
+PERGUNTA 1.5
+  Quantas apólices ativas a corretora tem hoje, aproximadamente?
+  (  ) Menos de 500
+  (  ) 500 a 2.000
+  (  ) 2.000 a 10.000
+  (  ) Mais de 10.000
+
+PERGUNTA 1.6
+  Qual é o ramo principal da carteira? (pode marcar mais de um)
+  (  ) Auto
+  (  ) Vida
+  (  ) Residencial / Patrimonial
+  (  ) Empresarial
+  (  ) Saúde
+  (  ) Outro: _______________________________________________
+
+PERGUNTA 1.7
+  Com quantas seguradoras a corretora trabalha atualmente?
+  Liste as principais: ______________________________________
+
+________________________________________________________________________________
+
+BLOCO 2 — GOVERNANÇA E REGRAS DE NEGÓCIO
+"Quem aprova o quê — e até onde o agente pode agir sozinho?"
+________________________________________________________________________________
+
+Contexto: esse bloco define os limites de autonomia do agente e protege a
+corretora de riscos operacionais e legais.
+
+PERGUNTA 2.1
+  No processo de renovação atual, quem faz cada etapa?
+  Preencha com o nome do cargo responsável:
+
+  Identificar apólices próximas do vencimento:  _______________
+  Entrar em contato com o cliente:              _______________
+  Apresentar a proposta de renovação:           _______________
+  Negociar condições (se necessário):           _______________
+  Emitir a apólice renovada:                    _______________
+  Enviar o documento ao cliente:                _______________
+
+PERGUNTA 2.2
+  Existe alguma regra hoje sobre quando uma renovação NÃO pode ser
+  feita sem aprovação de um gestor? (ex: cliente com sinistro recente,
+  variação de prêmio acima de X%, cliente VIP, etc.)
+  ___________________________________________________________
+  ___________________________________________________________
+
+PERGUNTA 2.3
+  No processo de sinistros atual, quem faz cada etapa?
+
+  Receber o aviso do cliente:                   _______________
+  Coletar informações e documentos:             _______________
+  Abrir o processo na seguradora:               _______________
+  Acionar prestador / assistência:              _______________
+  Acompanhar e atualizar o cliente:             _______________
+
+PERGUNTA 2.4
+  Quais tipos de sinistro são mais frequentes na carteira?
+  Ordene do mais para o menos comum:
+  1. ________________________________________________________
+  2. ________________________________________________________
+  3. ________________________________________________________
+
+PERGUNTA 2.5
+  Para quais tipos de sinistro o agente poderia agir 100% sozinho,
+  sem nenhuma intervenção humana, sem risco para a corretora?
+  ___________________________________________________________
+  ___________________________________________________________
+
+PERGUNTA 2.6
+  Existe alguma exigência regulatória ou contratual com as seguradoras
+  que limite o que pode ser feito de forma automatizada?
+  (  ) Sim — qual? __________________________________________
+  (  ) Não
+  (  ) Não sei — precisa verificar
+
+PERGUNTA 2.7
+  Se o agente cometer um erro (ex: enviar proposta com valor errado),
+  quem na corretora é responsável por resolver? Existe um processo
+  hoje para tratar erros operacionais?
+  ___________________________________________________________
+
+________________________________________________________________________________
+
+BLOCO 3 — PERFIL E COMPORTAMENTO DO CLIENTE
+"O cliente vai aceitar falar com um agente?"
+________________________________________________________________________________
+
+Contexto: esse bloco deve ser respondido tanto pela equipe da corretora quanto
+diretamente por clientes (entrevistas rápidas de 15 minutos).
+
+  — PERGUNTAS PARA A EQUIPE DA CORRETORA —
+
+PERGUNTA 3.1
+  Qual é o canal mais usado pelos clientes para entrar em contato hoje?
+  (  ) Telefone / ligação
+  (  ) WhatsApp
+  (  ) E-mail
+  (  ) Presencial na corretora
+  (  ) Outro: _______________________________________________
+
+PERGUNTA 3.2
+  Qual é a faixa etária predominante da carteira de clientes?
+  (  ) Majoritariamente jovens (18–35 anos)
+  (  ) Majoritariamente adultos (35–55 anos)
+  (  ) Majoritariamente sênior (55+ anos)
+  (  ) Bem distribuída entre todas as faixas
+
+PERGUNTA 3.3
+  A carteira é majoritariamente pessoa física ou jurídica?
+  (  ) Pessoa física (PF)
+  (  ) Pessoa jurídica (PJ)
+  (  ) Misto — qual a proporção aproximada? PF: ___% PJ: ___%
+
+PERGUNTA 3.4
+  Já houve alguma tentativa de atendimento digital (chatbot, e-mail
+  automático, etc.)? Se sim, qual foi a reação dos clientes?
+  ___________________________________________________________
+
+PERGUNTA 3.5
+  Qual é a maior reclamação dos clientes hoje em relação ao
+  atendimento da corretora?
+  ___________________________________________________________
+  ___________________________________________________________
+
+  — PERGUNTAS PARA CLIENTES (entrevista direta, 15 min) —
+
+PERGUNTA 3.6
+  "Como você prefere ser avisado quando seu seguro está perto de vencer?"
+  ___________________________________________________________
+
+PERGUNTA 3.7
+  "Se você precisasse abrir um sinistro agora, como gostaria de fazer isso?"
+  ___________________________________________________________
+
+PERGUNTA 3.8
+  "Você se sentiria confortável sendo atendido por um assistente virtual
+  no WhatsApp para renovar seu seguro ou abrir um sinistro?"
+  (  ) Sim, sem problema
+  (  ) Sim, desde que pudesse falar com humano se necessário
+  (  ) Não — prefiro sempre falar com uma pessoa
+  (  ) Depende do assunto — para sinistro, não; para renovação, sim
+
+PERGUNTA 3.9
+  "O que te daria mais confiança para aceitar uma renovação enviada
+  pelo WhatsApp sem precisar ligar para a corretora?"
+  ___________________________________________________________
+
+PERGUNTA 3.10
+  "O que te faria desconfiar ou ignorar uma mensagem de renovação
+  que chegasse por WhatsApp?"
+  ___________________________________________________________
+
+________________________________________________________________________________
+
+ANÁLISE PÓS-LEVANTAMENTO
+________________________________________________________________________________
+
+Após aplicar o roteiro, avalie:
+
+  SINAL VERDE — projeto pode avançar no prazo previsto:
+    [ ] Base de apólices exportável em até 1 semana
+    [ ] Há pelo menos 1 pessoa técnica de referência na corretora
+    [ ] Clientes já usam WhatsApp para contato com a corretora
+    [ ] Existem regras claras sobre o que pode ser automatizado
+
+  SINAL AMARELO — prazo pode precisar de ajuste:
+    [ ] Base de apólices está parcialmente organizada
+    [ ] Não há API no sistema atual (precisará de integração manual)
+    [ ] Clientes são mistos em preferência de canal
+
+  SINAL VERMELHO — risco alto, endereçar antes de iniciar:
+    [ ] Dados de apólices estão em PDFs ou papéis físicos
+    [ ] Não há clareza sobre quem aprova o quê internamente
+    [ ] Carteira majoritariamente sênior ou PJ com exigência de humano
+    [ ] Restrição regulatória não mapeada com seguradoras
+
+________________________________________________________________________________
+
+  Aplicar este roteiro antes do kickoff do M1 garante que o projeto
+  comece com as informações certas e sem surpresas no meio do caminho.
+
+================================================================================

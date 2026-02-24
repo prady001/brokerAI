@@ -1,0 +1,29 @@
+# Ambiente
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Testes
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Mypy
+.mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+postgres_data/
+redis_data/
+
+# OS
+.DS_Store
+Thumbs.db

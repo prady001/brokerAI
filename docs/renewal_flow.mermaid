@@ -1,0 +1,52 @@
+flowchart TD
+    CRON["⏰ CRON diário 08:00"]
+    QUERY["Busca apólices\nvencendo em 30 dias"]
+    EVAL["Avalia elegibilidade\nde renovação"]
+
+    AUTO["✅ Modo AUTO\nsem sinistros + pagamento ok\n+ variação ≤ 15%"]
+    MANUAL["👤 Modo MANUAL\ncondição especial\nou cliente VIP"]
+    BLOCKED["🚫 Bloqueada\nregistra motivo"]
+
+    QUOTE["Busca cotação\natualizada na seguradora"]
+    SEND["Envia proposta\nvia WhatsApp"]
+
+    R1["✅ Cliente aceita"]
+    R2["❓ Cliente tem dúvida"]
+    R3["❌ Cliente recusa"]
+    R4["🔇 Sem resposta"]
+
+    BROKER["👤 Corretor notificado\ncom resumo da conversa"]
+    LLM["Agente responde\na dúvida"]
+    REG["Registra motivo\n+ encerra"]
+    F1["Lembrete 15 dias"]
+    F2["Lembrete 7 dias"]
+    F3["Lembrete 2 dias"]
+    ESC["👤 Escala para corretor\núltimo recurso"]
+
+    CRON --> QUERY --> EVAL
+    EVAL --> AUTO
+    EVAL --> MANUAL
+    EVAL --> BLOCKED
+
+    MANUAL --> BROKER
+    BLOCKED --> REG
+
+    AUTO --> QUOTE --> SEND
+
+    SEND --> R1
+    SEND --> R2
+    SEND --> R3
+    SEND --> R4
+
+    R1 --> BROKER
+    R2 --> LLM --> SEND
+    R3 --> REG
+    R4 --> F1 --> F2 --> F3 --> ESC
+
+    style AUTO fill:#27AE60,color:#fff
+    style MANUAL fill:#F39C12,color:#fff
+    style BLOCKED fill:#E74C3C,color:#fff
+    style BROKER fill:#F39C12,color:#fff
+    style ESC fill:#E74C3C,color:#fff
+    style R1 fill:#27AE60,color:#fff
+    style R3 fill:#E74C3C,color:#fff

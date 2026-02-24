@@ -1,0 +1,51 @@
+graph TD
+    WA["📱 WhatsApp Business API\n(cliente)"]
+    CRON["⏰ CRON Scheduler\ndiário 08:00"]
+
+    GW["🔀 API Gateway\nFastAPI"]
+
+    ORCH["🧠 Agente Orquestrador\ndetecta intenção e roteia"]
+
+    RENEW["📋 Agente de Renovação\ngerencia ciclo de renovação"]
+    CLAIMS["🚨 Agente de Sinistros\ncoleta FNOL e roteia"]
+    FAQ["💬 FAQ Handler\nrespostas gerais"]
+    HUMAN["👤 Handoff Humano\ncorretor / gestor"]
+
+    PS["PolicyService"]
+    CS["ClaimService"]
+    NS["NotificationService"]
+
+    PG[("PostgreSQL\ndados primários")]
+    RD[("Redis\nestado de conversas")]
+    S3[("AWS S3\ndocumentos")]
+
+    WA --> GW
+    CRON --> GW
+    GW --> ORCH
+
+    ORCH -->|"intent = renewal"| RENEW
+    ORCH -->|"intent = claim"| CLAIMS
+    ORCH -->|"intent = faq"| FAQ
+    ORCH -->|"intent = unknown"| HUMAN
+
+    RENEW --> PS
+    RENEW --> NS
+    CLAIMS --> CS
+    CLAIMS --> NS
+    FAQ --> NS
+
+    RENEW -->|"aceite recebido\nou regra manual"| HUMAN
+
+    PS --> PG
+    CS --> PG
+    NS --> WA
+    NS --> S3
+    ORCH --> RD
+    RENEW --> RD
+    CLAIMS --> RD
+
+    style ORCH fill:#4A90D9,color:#fff
+    style RENEW fill:#27AE60,color:#fff
+    style CLAIMS fill:#E74C3C,color:#fff
+    style HUMAN fill:#F39C12,color:#fff
+    style FAQ fill:#8E44AD,color:#fff
