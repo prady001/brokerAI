@@ -1,0 +1,71 @@
+flowchart TD
+    START["⏰ CRON dispara\n08:00 BRT"]
+
+    LOAD["Carrega lista de\nseguradoras configuradas"]
+
+    LOOP_START["Para cada seguradora"]
+
+    ACCESS["fetch_commission_data\nacessa portal da seguradora"]
+
+    HAS_API{{"Tem API REST?"}}
+
+    API["Chama API REST\ncom OAuth token"]
+    RPA["Playwright headless\nnavega portal web"]
+
+    TWO_FA{{"Exige 2FA?"}}
+
+    TOTP["pyotp gera\ncódigo TOTP"]
+    EMAIL_OTP["IMAP lê\ne-mail OTP"]
+    SMS_OTP["Gateway SMS\nrecebe OTP"]
+
+    DATA["Extrai dados:\n· seguradora\n· apólice\n· cliente\n· competência\n· valor"]
+
+    STORE["Registra comissão\nno PostgreSQL"]
+
+    ERROR{{"Erro de acesso?"}}
+    ALERT_ERR["alert_missing_commission\nnotifica corretora"]
+
+    MORE{{"Mais seguradoras?"}}
+
+    CONSOLIDATE["consolidate_report\nagrupa todas as seguradoras"]
+
+    EMIT["emit_nfse\nchama Focus NFe API\npara cada comissão"]
+
+    NFSE_OK{{"NFS-e emitida?"}}
+    ALERT_NF["Alerta corretora\nerro na emissão"]
+
+    SUMMARY["send_daily_summary\nWhatsApp da corretora"]
+
+    END["✅ Ciclo concluído"]
+
+    START --> LOAD --> LOOP_START --> ACCESS
+    ACCESS --> HAS_API
+    HAS_API -->|"sim"| API
+    HAS_API -->|"não"| RPA
+
+    API --> TWO_FA
+    RPA --> TWO_FA
+
+    TWO_FA -->|"TOTP"| TOTP --> DATA
+    TWO_FA -->|"e-mail"| EMAIL_OTP --> DATA
+    TWO_FA -->|"SMS"| SMS_OTP --> DATA
+    TWO_FA -->|"não"| DATA
+
+    DATA --> STORE --> ERROR
+    ERROR -->|"sim"| ALERT_ERR --> MORE
+    ERROR -->|"não"| MORE
+
+    MORE -->|"sim"| LOOP_START
+    MORE -->|"não"| CONSOLIDATE
+
+    CONSOLIDATE --> EMIT --> NFSE_OK
+    NFSE_OK -->|"sim"| SUMMARY
+    NFSE_OK -->|"não"| ALERT_NF --> SUMMARY
+    SUMMARY --> END
+
+    style START fill:#2ECC71,color:#fff
+    style END fill:#2ECC71,color:#fff
+    style ALERT_ERR fill:#E74C3C,color:#fff
+    style ALERT_NF fill:#E74C3C,color:#fff
+    style EMIT fill:#9B59B6,color:#fff
+    style SUMMARY fill:#4A90D9,color:#fff

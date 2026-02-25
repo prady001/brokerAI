@@ -1,26 +1,33 @@
 # brokerAI
 
-Sistema de agentes de IA para automatizar renovação de apólices e abertura de sinistros em corretoras de seguros brasileiras, operando via WhatsApp Business API.
+Sistema de agentes de IA para automatizar o comissionamento e o atendimento de sinistros em corretoras de seguros brasileiras.
 
 ## O problema
 
-Corretoras operam hoje com processos 100% manuais nos dois fluxos de maior volume: renovação de apólices e abertura de sinistros. Isso gera custo operacional alto, perda de receita por apólices vencendo sem abordagem proativa, e experiência ruim para o cliente.
+Corretoras operam hoje com processos 100% manuais nos dois processos de maior custo operacional: baixa de comissões das seguradoras e intermediação de sinistros via WhatsApp.
+
+- **Comissionamento:** a equipe acessa diariamente o portal de cada seguradora individualmente, extrai dados de comissão, consolida manualmente e emite nota fiscal. Processo repetitivo, sujeito a erros e com risco de perda de receita.
+- **Sinistros:** a corretora funciona como cópia-e-cola entre o cliente e a seguradora. Alto volume, baixo valor agregado, especialmente em pedidos de assistência 24h.
 
 ## A solução
 
-Três agentes LangGraph especializados, com humanos no loop para decisões finais no MVP:
+Dois agentes LangGraph independentes, com humanos no loop para exceções:
 
 ```
+CRON (08:00 BRT)  ──►  Agente de Comissionamento
+                              │
+                   portais seguradoras → NFS-e → WhatsApp
+
 WhatsApp (Z-API)  ──►  Agente Orquestrador
-                            │            │
-                   Agente Renovação   Agente Sinistros
-                            │            │
-              PostgreSQL · Redis · AWS S3 · SendGrid
+                              │
+                        Agente de Sinistros
+                              │
+                   seguradora ↔ cliente (relay)
 ```
 
-- **Agente Orquestrador** — detecta intenção e roteia para o agente correto
-- **Agente de Renovação** — conduz o ciclo completo de renovação, do contato inicial ao handoff para o corretor emitir
-- **Agente de Sinistros** — abre o FNOL, coleta documentos, gera protocolo e aciona assistência
+- **Agente de Comissionamento** — acessa portais das seguradoras (via API ou RPA), consolida comissões, emite NFS-e automaticamente e envia resumo diário para a corretora
+- **Agente de Sinistros** — recebe o cliente no WhatsApp, coleta dados, abre o chamado na seguradora e faz o relay das atualizações até o encerramento
+- **Agente Orquestrador** — roteia mensagens WhatsApp para o agente correto e gerencia handoffs para humano
 
 ## Stack
 
@@ -33,6 +40,9 @@ WhatsApp (Z-API)  ──►  Agente Orquestrador
 | Estado de conversas | Redis 7 |
 | Documentos | AWS S3 |
 | WhatsApp | Z-API |
+| Automação de portais | Playwright (RPA) |
+| 2FA automatizado | pyotp + gateway SMS/IMAP |
+| Emissão de NFS-e | Focus NFe API |
 | E-mail fallback | SendGrid |
 | Observabilidade | LangSmith + Sentry |
 

@@ -1,51 +1,56 @@
 graph TD
+    CRON["⏰ CRON Scheduler\ndiário 08:00 BRT"]
     WA["📱 WhatsApp Business API\n(cliente)"]
-    CRON["⏰ CRON Scheduler\ndiário 08:00"]
 
     GW["🔀 API Gateway\nFastAPI"]
 
-    ORCH["🧠 Agente Orquestrador\ndetecta intenção e roteia"]
+    COMM["💰 Agente de Comissionamento\nacessa portais · consolida · emite NFS-e"]
+    ORCH["🧠 Agente Orquestrador\ndetecta intenção · roteia · handoff"]
+    CLAIMS["🚨 Agente de Sinistros\nrelay cliente ↔ seguradora"]
+    HUMAN["👤 Corretor Humano\nexceções e casos graves"]
 
-    RENEW["📋 Agente de Renovação\ngerencia ciclo de renovação"]
-    CLAIMS["🚨 Agente de Sinistros\ncoleta FNOL e roteia"]
-    FAQ["💬 FAQ Handler\nrespostas gerais"]
-    HUMAN["👤 Handoff Humano\ncorretor / gestor"]
-
-    PS["PolicyService"]
-    CS["ClaimService"]
-    NS["NotificationService"]
+    IPS["InsurerPortalService\nAPI adapter · RPA adapter · 2FA"]
+    CS["CommissionService"]
+    NFSE["NfseService\nFocus NFe API"]
+    CLS["ClaimService"]
+    NS["NotificationService\nZ-API · SendGrid"]
 
     PG[("PostgreSQL\ndados primários")]
     RD[("Redis\nestado de conversas")]
     S3[("AWS S3\ndocumentos")]
+    INSURER["🏢 Portais das Seguradoras\nAPI REST ou RPA"]
+    FOCUSNFE["🧾 Focus NFe\nNFS-e API"]
 
-    WA --> GW
     CRON --> GW
-    GW --> ORCH
+    WA --> GW
+    GW -->|"POST /scheduler/commission-check"| COMM
+    GW -->|"POST /webhook/whatsapp"| ORCH
 
-    ORCH -->|"intent = renewal"| RENEW
-    ORCH -->|"intent = claim"| CLAIMS
-    ORCH -->|"intent = faq"| FAQ
+    COMM --> IPS
+    COMM --> CS
+    COMM --> NFSE
+    COMM --> NS
+
+    ORCH -->|"intent = sinistro"| CLAIMS
     ORCH -->|"intent = unknown"| HUMAN
 
-    RENEW --> PS
-    RENEW --> NS
-    CLAIMS --> CS
+    CLAIMS --> CLS
     CLAIMS --> NS
-    FAQ --> NS
+    CLAIMS -->|"sinistro grave"| HUMAN
 
-    RENEW -->|"aceite recebido\nou regra manual"| HUMAN
-
-    PS --> PG
-    CS --> PG
+    IPS --> INSURER
+    NFSE --> FOCUSNFE
     NS --> WA
-    NS --> S3
-    ORCH --> RD
-    RENEW --> RD
-    CLAIMS --> RD
 
-    style ORCH fill:#4A90D9,color:#fff
-    style RENEW fill:#27AE60,color:#fff
+    CS --> PG
+    CLS --> PG
+    ORCH --> RD
+    CLAIMS --> RD
+    CLS --> S3
+
+    style COMM fill:#2ECC71,color:#fff
     style CLAIMS fill:#E74C3C,color:#fff
+    style ORCH fill:#4A90D9,color:#fff
     style HUMAN fill:#F39C12,color:#fff
-    style FAQ fill:#8E44AD,color:#fff
+    style IPS fill:#95A5A6,color:#fff
+    style NFSE fill:#9B59B6,color:#fff

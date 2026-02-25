@@ -1,8 +1,8 @@
 # Project Spec — Solução de Agentes de IA para Corretora de Seguros
 
-> **Versão:** 1.0  
-> **Data:** Fevereiro de 2026  
-> **Status:** Draft  
+> **Versão:** 2.0
+> **Data:** Fevereiro de 2026
+> **Status:** Draft — escopo revisado após entrevista com a corretora
 
 ---
 
@@ -10,35 +10,32 @@
 
 ### 1.1 Problema
 
-A corretora opera hoje com processos 100% manuais nos dois fluxos de maior volume operacional: renovação de apólices e abertura de sinistros. Isso gera três problemas diretos e mensuráveis:
+A corretora opera hoje com processos 100% manuais nos dois fluxos de maior custo operacional identificados na entrevista com a equipe: baixa de comissionamento e intermediação de sinistros.
 
-- **Custo operacional alto:** a equipe gasta tempo em tarefas repetitivas e de baixo valor (ligar, enviar e-mail, preencher sistema, cobrar documentos) que poderiam ser automatizadas.
-- **Receita perdida:** apólices vencem sem abordagem proativa ao cliente, reduzindo a taxa de renovação por falta de processo sistemático.
-- **Experiência ruim:** clientes esperam horas ou dias para abrir um sinistro ou receber uma proposta de renovação, num mercado onde velocidade é diferencial competitivo.
+- **Comissionamento:** a equipe acessa diariamente os portais de cada seguradora individualmente, extrai os dados de comissão manualmente, consolida em planilha e emite nota fiscal. O processo se repete para cada seguradora e consome horas por dia sem gerar nenhum valor além do controle financeiro mínimo.
+- **Sinistros:** a corretora funciona como cópia-e-cola entre o cliente e a seguradora via WhatsApp. Recebe a demanda, repassa para a seguradora, aguarda resposta e devolve ao cliente — um trabalho repetitivo, de baixo julgamento e alto volume, especialmente nos pedidos de assistência 24h (guincho e pane).
 
 ### 1.2 Solução
 
-Construir um sistema de dois agentes de IA especializados — um para renovação automática de apólices e outro para ativação de sinistros — operando via WhatsApp Business API, com humanos no loop para decisões finais no MVP.
+Construir dois agentes de IA especializados — um para automação completa do ciclo de comissionamento e outro para intermediação de sinistros — operando de forma autônoma, com o humano acionado apenas em exceções.
 
-Os agentes assumem toda a operação repetitiva, deixando a equipe humana focada em exceções, negociações complexas e relacionamento.
+Os agentes assumem toda a operação repetitiva, deixando a equipe focada em relacionamento, negociação e casos que realmente exigem julgamento humano.
 
 ### 1.3 Objetivos Estratégicos
 
-Os três objetivos têm peso igual no projeto:
-
 | # | Objetivo | Indicador Principal |
 |---|---|---|
-| 1 | Reduzir custo operacional | Horas de trabalho manual economizadas por semana |
-| 2 | Aumentar taxa de renovação de apólices | % de apólices renovadas vs. vencidas |
-| 3 | Melhorar experiência do cliente | Tempo médio de atendimento + CSAT |
+| 1 | Eliminar trabalho operacional de comissionamento | Horas/dia gastas no processo antes vs. depois |
+| 2 | Reduzir tempo de resposta em sinistros | Tempo médio de retorno ao cliente |
+| 3 | Garantir que nenhuma comissão seja perdida | % de comissões capturadas vs. disponíveis nas seguradoras |
 
 ### 1.4 Contexto e Restrições
 
-- **Estágio tecnológico atual:** processo 100% manual, sem automação prévia
+- **Estágio tecnológico atual:** processo 100% manual, sem automação prévia; sistema de gestão é o Agger
 - **Horizonte de entrega:** MVP em até 3 meses
 - **Canal primário:** WhatsApp (canal preferido do cliente brasileiro)
-- **Escopo do MVP:** agentes assistidos — humano valida antes da emissão final
-- **Fora do escopo do MVP:** emissão automática, integração multi-seguradora via API, app mobile, dashboard de gestão
+- **Escopo do MVP:** Agente de Comissionamento (end-to-end autônomo) + Agente de Sinistros (relay assistido)
+- **Fora do escopo do MVP:** renovação de apólices, captação de novos clientes, integração bidirecional com Agger, app mobile, dashboard de gestão, emissão de apólices pelo agente
 
 ---
 
@@ -56,93 +53,101 @@ Product Requirements descrevem **o que o sistema deve fazer** do ponto de vista 
 
 #### 2.1.2 User Stories
 
-**Agente de Renovação**
+**Agente de Comissionamento**
 
 | ID | Como... | Quero... | Para... |
 |---|---|---|---|
-| US-01 | Cliente | Ser avisado com antecedência que meu seguro vai vencer | Não ficar desprotegido por falta de tempo |
-| US-02 | Cliente | Receber a proposta de renovação direto no WhatsApp | Não precisar ligar ou ir à corretora |
-| US-03 | Cliente | Tirar dúvidas sobre valor e cobertura pelo WhatsApp | Decidir com informação antes de confirmar |
-| US-04 | Cliente | Confirmar a renovação com uma mensagem simples | O processo ser rápido e sem burocracia |
-| US-05 | Corretor | Receber apenas os clientes que já estão prontos para fechar | Focar meu tempo em negociação, não em prospecção |
-| US-06 | Corretor | Ver quais apólices foram abordadas pelo agente e qual o status | Ter visibilidade sem precisar controlar manualmente |
+| US-01 | Corretora | Receber todo dia um resumo das comissões disponíveis no WhatsApp | Não precisar acessar nenhum portal manualmente |
+| US-02 | Corretora | Ter a nota fiscal emitida automaticamente quando houver comissão | Não perder prazo de faturamento |
+| US-03 | Corretora | Ter todas as seguradoras consolidadas em um único relatório | Parar de alternar entre múltiplos sites |
+| US-04 | Corretora | Ser alertada quando uma comissão esperada não aparecer | Não deixar dinheiro na mesa por falta de acompanhamento |
 
 **Agente de Sinistros**
 
 | ID | Como... | Quero... | Para... |
 |---|---|---|---|
-| US-07 | Cliente | Abrir um sinistro a qualquer hora pelo WhatsApp | Não depender do horário comercial da corretora |
-| US-08 | Cliente | Ser guiado sobre quais informações e documentos preciso enviar | Não errar e atrasar meu processo |
-| US-09 | Cliente | Receber um protocolo imediatamente após o aviso | Ter confirmação de que o processo foi iniciado |
-| US-10 | Cliente | Ser atualizado sobre o status do meu sinistro sem precisar ligar | Ter tranquilidade durante o processo |
-| US-11 | Corretor | Receber o sinistro já com todas as informações organizadas | Agir rápido sem precisar ligar para o cliente para coletar dados |
+| US-05 | Cliente | Acionar meu sinistro a qualquer hora pelo WhatsApp | Não depender do horário comercial da corretora |
+| US-06 | Cliente | Receber atualizações do meu caso sem precisar ligar | Ter tranquilidade durante o processo |
+| US-07 | Cliente | Saber o status do meu pedido de guincho em tempo real | Não ficar sem informação na beira da estrada |
+| US-08 | Corretora | Não precisar ficar no meio da conversa entre cliente e seguradora | Focar em casos que realmente precisam de mim |
+| US-09 | Corretora | Ter o histórico completo de cada sinistro centralizado | Consultar qualquer caso sem depender de memória ou WhatsApp pessoal |
 
 ---
 
 #### 2.1.3 Regras de Negócio
 
-**Renovação — Critérios de Autonomia do Agente**
+**Comissionamento — Ciclo diário**
 
-| Condição | Ação do Agente |
+| Etapa | Regra |
 |---|---|
-| Sem sinistros no período + pagamento em dia + variação de prêmio ≤ 15% | ✅ Encaminha proposta automaticamente |
-| Sinistro no período OU variação de prêmio > 15% | 👤 Escala para corretor humano |
-| Cliente VIP (acima de valor X em prêmio anual) | 👤 Sempre revisado por humano |
-| Dados desatualizados (endereço, placa, etc.) | 🔄 Solicita atualização antes de prosseguir |
-| Sem resposta do cliente após 3 tentativas | 🔔 Alerta corretor para contato direto |
+| Horário de execução | Diariamente às 08:00 BRT via CRON |
+| Acesso aos portais | Credenciais da corretora armazenadas com criptografia; 2FA gerenciado pelo agente |
+| Consolidação | Todas as seguradoras processadas antes de gerar o relatório |
+| Emissão de NFS-e | Disparada automaticamente ao confirmar comissão disponível; uma nota por seguradora |
+| Comissão ausente | Se uma seguradora esperada não retornar dados, gerar alerta específico para a corretora |
+| Falha de acesso | Em caso de erro de login ou portal indisponível, notificar corretora e registrar para retry no dia seguinte |
 
-**Renovação — Régua de Comunicação**
+**Comissionamento — Estratégia de integração por seguradora**
 
-| Prazo antes do vencimento | Ação |
+| Tipo de acesso | Estratégia |
 |---|---|
-| 30 dias | Primeiro contato: proposta de renovação |
-| 15 dias | Lembrete se não houver resposta |
-| 7 dias | Segundo lembrete + senso de urgência |
-| 2 dias | Alerta final + escala para corretor se sem resposta |
-| Vencimento | Notificação de vencimento + abertura de nova cotação |
+| Seguradora com API de corretor (ex: Bradesco) | Integração via API REST com autenticação OAuth |
+| Seguradora sem API | Automação de browser com Playwright (RPA) |
+| 2FA por TOTP | Geração automática via `pyotp` com chave secreta armazenada |
+| 2FA por SMS/e-mail | Leitura automática via gateway SMS ou IMAP em conta dedicada |
 
-**Sinistros — Classificação e Roteamento**
+**Sinistros — Roteamento**
 
-| Tipo de Sinistro | Ação Automática |
+| Tipo | Ação do Agente |
 |---|---|
-| Troca de vidro / pequenos danos | Abre OS + agenda assistência automaticamente |
-| Assistência 24h (pane, reboque) | Aciona prestador imediatamente |
-| Colisão com terceiros | Coleta FNOL + abre processo + escala para regulador |
-| Furto / roubo parcial ou total | Orienta BO digital + escala para perito |
-| Incêndio / danos estruturais | Coleta FNOL + escala urgente para gestor |
-| Acidente com vítima | Aciona socorro + notifica gestor imediatamente |
+| Assistência 24h (guincho, pane, troca de pneu) | Coleta dados → abre chamado na seguradora → atualiza cliente em tempo real |
+| Troca de vidro / pequenos danos | Coleta dados → abre chamado → repassa protocolo ao cliente |
+| Colisão, furto, incêndio, acidente com vítima | Coleta dados iniciais → escala imediatamente para corretor humano com resumo estruturado |
+| Dúvida geral (não é sinistro) | Responde ou escala conforme contexto |
+
+**Sinistros — Regras de escalada**
+
+| Condição | Ação |
+|---|---|
+| Sinistro grave (colisão, furto, vítima) | Escala sempre para humano, independente do horário |
+| Sem retorno da seguradora em > 2h | Notifica corretora para acompanhamento manual |
+| Cliente solicitar falar com humano | Handoff imediato com histórico completo da conversa |
 
 ---
 
 #### 2.1.4 Critérios de Aceite por Funcionalidade
 
-**[F-01] Monitoramento de vencimentos**
-- [ ] O sistema identifica diariamente todas as apólices com vencimento nos próximos 30 dias
-- [ ] Nenhuma apólice elegível é ignorada sem registro de motivo
-- [ ] O agente aplica corretamente as regras de autonomia antes de agir
+**[F-01] Coleta de comissões nos portais das seguradoras**
+- [ ] O agente acessa todos os portais configurados diariamente às 08:00 BRT sem intervenção humana
+- [ ] O agente resolve o 2FA automaticamente (TOTP, e-mail ou SMS conforme o portal)
+- [ ] Falhas de acesso são registradas e notificadas à corretora com descrição do erro
+- [ ] Nenhuma seguradora configurada é ignorada sem registro de motivo
 
-**[F-02] Envio de proposta de renovação**
-- [ ] A mensagem é enviada no WhatsApp do cliente em menos de 1 minuto após acionamento
-- [ ] A proposta contém: nome do cliente, tipo de seguro, valor atual, valor proposto e data de vencimento
-- [ ] O agente responde dúvidas simples (cobertura, forma de pagamento) sem intervenção humana
+**[F-02] Consolidação e relatório de comissões**
+- [ ] O relatório diário consolida dados de todas as seguradoras em formato único
+- [ ] Cada linha contém: seguradora, número da apólice, cliente, competência e valor da comissão
+- [ ] O relatório é enviado via WhatsApp para a corretora até as 09:00 BRT
 
-**[F-03] Handoff para corretor humano**
-- [ ] O corretor recebe notificação com resumo do cliente e histórico da conversa
-- [ ] O handoff acontece em menos de 2 minutos após o gatilho ser ativado
-- [ ] O cliente recebe mensagem confirmando que um corretor vai entrar em contato
+**[F-03] Emissão automática de NFS-e**
+- [ ] A nota fiscal é emitida automaticamente via API (Focus NFe ou equivalente) para cada comissão confirmada
+- [ ] A NF contém os dados corretos de tomador (seguradora) e prestador (corretora)
+- [ ] Confirmação de emissão é incluída no relatório diário
+- [ ] Erros de emissão geram alerta imediato para a corretora
 
-**[F-04] Recebimento de aviso de sinistro**
-- [ ] O agente inicia o fluxo de coleta em menos de 30 segundos após a mensagem do cliente
-- [ ] O agente coleta: tipo, data, hora, local, descrição, terceiros envolvidos e documentos
+**[F-04] Recebimento e triagem de sinistros**
+- [ ] O agente responde ao cliente em menos de 30 segundos após a mensagem
+- [ ] O agente coleta: tipo de sinistro, localização (se aplicável), número da apólice ou placa
+- [ ] O agente classifica corretamente entre sinistro simples e sinistro grave em ≥ 90% dos casos de teste
 
-**[F-05] Geração de protocolo de sinistro**
-- [ ] Protocolo gerado e enviado ao cliente em menos de 3 minutos após o aviso
-- [ ] O protocolo contém: número único, data/hora de abertura e próximos passos
+**[F-05] Relay com a seguradora**
+- [ ] O agente abre o chamado na seguradora pelo canal correto (API ou WhatsApp da seguradora)
+- [ ] O agente repassa a resposta da seguradora ao cliente em menos de 2 minutos após o recebimento
+- [ ] O histórico completo da conversa (cliente ↔ agente ↔ seguradora) é armazenado e consultável
 
-**[F-06] Triagem e roteamento de sinistros**
-- [ ] O agente classifica corretamente o tipo de sinistro em ≥ 90% dos casos de teste
-- [ ] Sinistros simples são roteados sem intervenção humana
-- [ ] Sinistros complexos chegam ao time interno com todas as informações organizadas
+**[F-06] Escalada para humano**
+- [ ] Sinistros graves disparam notificação para o corretor em menos de 1 minuto com resumo estruturado
+- [ ] O cliente recebe confirmação de que um corretor entrará em contato
+- [ ] O corretor recebe: tipo de sinistro, dados do cliente, dados da apólice e histórico da conversa
 
 ---
 
@@ -150,11 +155,12 @@ Product Requirements descrevem **o que o sistema deve fazer** do ponto de vista 
 
 | Métrica | Baseline (hoje) | Meta MVP |
 |---|---|---|
-| % de apólices abordadas antes do vencimento | ~30% (manual, inconsistente) | ≥ 90% |
-| Tempo médio de envio da proposta de renovação | 1–3 dias | < 1 minuto |
-| Tempo médio de abertura de sinistro | 20–40 minutos | < 5 minutos |
-| Taxa de resposta do cliente no WhatsApp | — | ≥ 40% |
-| Horas manuais economizadas por semana | — | ≥ 60% do tempo atual nos dois processos |
+| Tempo gasto com baixa de comissão por dia | A mapear na entrevista | < 5 minutos (revisão do relatório) |
+| % de comissões capturadas vs. disponíveis | A mapear (risco de perda manual) | 100% |
+| Tempo entre comissão disponível e NF emitida | 1–3 dias (manual) | < 1 hora (automático) |
+| Tempo de primeira resposta ao cliente em sinistro | 20–60 minutos | < 1 minuto |
+| Tempo de repasse da resposta da seguradora ao cliente | 30–120 minutos | < 2 minutos |
+| Horas manuais economizadas por semana | — | ≥ 70% do tempo atual nos dois processos |
 | CSAT dos atendimentos via agente | — | ≥ 4.0 / 5.0 |
 
 ---
@@ -169,71 +175,71 @@ Technical Design descreve **como o sistema será construído** — a arquitetura
 
 #### 2.2.2 Arquitetura dos Agentes
 
-O sistema é composto por três camadas:
+O sistema é composto por dois agentes independentes e uma camada de dados compartilhada:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    CANAL DE ENTRADA                      │
-│         WhatsApp Business API  |  Webhook HTTP           │
-└─────────────────────┬───────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────┐
-│                AGENTE ORQUESTRADOR                       │
-│  - Identifica a intenção da mensagem (renovação / sinistro / outro)  │
-│  - Gerencia estado da conversa (Redis)                   │
-│  - Roteia para o agente especializado correto            │
-│  - Gerencia handoff para humano                          │
-└──────────┬──────────────────────────────┬───────────────┘
-           │                              │
-┌──────────▼──────────┐       ┌───────────▼──────────────┐
-│  AGENTE RENOVAÇÃO   │       │    AGENTE SINISTROS       │
-│                     │       │                           │
-│  Tools:             │       │  Tools:                   │
-│  - query_policies   │       │  - start_fnol_flow        │
-│  - get_quote        │       │  - classify_claim         │
-│  - send_proposal    │       │  - request_documents      │
-│  - schedule_followup│       │  - generate_protocol      │
-│  - escalate_to_agent│       │  - trigger_assistance     │
-│  - emit_policy*     │       │  - escalate_to_adjuster   │
-└──────────┬──────────┘       └───────────┬──────────────┘
-           │                              │
-┌──────────▼──────────────────────────────▼──────────────┐
-│                   CAMADA DE DADOS                        │
-│     PostgreSQL  |  Redis  |  S3 (documentos)            │
-└─────────────────────────────────────────────────────────┘
-
-* emit_policy: desabilitado no MVP — requer aprovação humana
+┌──────────────────────────────────────────────────────────────────┐
+│                     AGENTE DE COMISSIONAMENTO                    │
+│                    (acionado por CRON — 08:00 BRT)               │
+│                                                                  │
+│  Tools:                                                          │
+│  - fetch_commission_data   (API ou Playwright por seguradora)    │
+│  - handle_2fa              (TOTP / e-mail / SMS)                 │
+│  - consolidate_report      (agrupa todas as seguradoras)         │
+│  - emit_nfse               (Focus NFe API)                       │
+│  - send_daily_summary      (WhatsApp para a corretora)           │
+│  - alert_missing_commission(notifica ausências inesperadas)      │
+└──────────────────────────┬───────────────────────────────────────┘
+                           │
+          ┌────────────────▼─────────────────┐
+          │          CAMADA DE DADOS          │
+          │  PostgreSQL | Redis | S3          │
+          └────────────────┬─────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────────┐
+│                      AGENTE DE SINISTROS                         │
+│               (acionado por webhook WhatsApp)                    │
+│                                                                  │
+│  Tools:                                                          │
+│  - classify_claim          (simples vs. grave)                   │
+│  - collect_claim_info      (coleta dados do cliente)             │
+│  - open_claim_at_insurer   (API da seguradora ou WhatsApp relay) │
+│  - relay_update_to_client  (repassa resposta da seguradora)      │
+│  - escalate_to_broker      (sinistros graves → humano)           │
+│  - store_claim_history     (centraliza histórico)                │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-**Fluxo de orquestração — Renovação:**
+**Fluxo de orquestração — Comissionamento:**
 
 ```
-1. CRON job diário → consulta apólices com vencimento em 30 dias
-2. Para cada apólice:
-   a. Aplica regras de autonomia
-   b. Se elegível → gera proposta → envia WhatsApp
-   c. Aguarda resposta do cliente (estado salvo em Redis)
-3. Cliente responde:
-   a. Dúvida → agente responde com LLM
-   b. Aceite → notifica corretor para emissão
-   c. Negativa → registra motivo + agenda follow-up
-   d. Silêncio → régua de lembretes automáticos
+1. CRON dispara às 08:00 BRT
+2. Para cada seguradora configurada:
+   a. Agente acessa portal via API (se disponível) ou Playwright (RPA)
+   b. Resolve 2FA automaticamente se necessário
+   c. Extrai dados de comissão disponíveis
+   d. Registra no banco
+3. Consolida relatório de todas as seguradoras
+4. Emite NFS-e via Focus NFe API para cada comissão
+5. Envia resumo consolidado via WhatsApp para a corretora
+6. Registra alertas para seguradoras sem dados ou com falha de acesso
 ```
 
 **Fluxo de orquestração — Sinistros:**
 
 ```
-1. Cliente envia mensagem de sinistro via WhatsApp
-2. Orquestrador detecta intenção → aciona Agente Sinistros
-3. Agente inicia FNOL:
-   a. Coleta tipo, data, hora, local, descrição
-   b. Solicita fotos e documentos
-   c. Classifica tipo de sinistro
-4. Com base na classificação:
-   a. Simples → aciona prestador automaticamente
-   b. Complexo → monta dossiê → notifica time interno
-5. Gera protocolo → envia ao cliente
-6. Agenda atualizações proativas de status
+1. Cliente envia mensagem via WhatsApp da corretora
+2. Agente identifica intenção de sinistro
+3. Coleta informações mínimas: tipo, localização, apólice/placa
+4. Classifica o sinistro:
+   a. Simples (assistência, guincho, vidro) → abre chamado na seguradora
+   b. Grave (colisão, furto, acidente com vítima) → escala para corretor humano
+5. Para sinistros simples:
+   a. Abre chamado via canal da seguradora (API ou WhatsApp)
+   b. Aguarda resposta
+   c. Repassa atualização ao cliente
+   d. Repete até encerramento
+6. Histórico completo armazenado e consultável
 ```
 
 ---
@@ -334,13 +340,17 @@ conversations
 
 | Integração | Finalidade | Prioridade no MVP |
 |---|---|---|
-| **WhatsApp Business API** | Canal de comunicação com cliente | 🔴 Crítica |
-| **Base de Apólices (CSV/ERP)** | Fonte de dados das apólices | 🔴 Crítica |
-| **E-mail (SendGrid / SES)** | Fallback de comunicação | 🟡 Importante |
-| **Gateway de Pagamento (PIX/boleto)** | Cobrança de renovação | 🟡 Importante |
-| **APIs das Seguradoras** | Cotação e emissão automática | 🟢 Pós-MVP |
-| **Prestadores de Assistência** | Acionamento direto no sinistro | 🟢 Pós-MVP |
-| **Sistema ERP da Corretora** | Sincronização bidirecional | 🟢 Pós-MVP |
+| **WhatsApp Business API (Z-API)** | Canal com cliente (sinistros) e com a corretora (resumos) | 🔴 Crítica |
+| **Portais das seguradoras (API ou RPA)** | Extração de dados de comissão | 🔴 Crítica |
+| **Focus NFe / NFE.io** | Emissão automática de NFS-e | 🔴 Crítica |
+| **Gateway SMS ou IMAP** | Resolução de 2FA nos portais das seguradoras | 🔴 Crítica |
+| **Agger (exportação CSV)** | Fonte inicial da carteira de apólices | 🟡 Importante |
+| **E-mail (SendGrid / SES)** | Fallback de comunicação e 2FA por e-mail | 🟡 Importante |
+| **Bradesco Seguros API (Portal de Devs)** | Integração nativa para comissão e sinistros | 🟡 Importante |
+| **Integração bidirecional com Agger** | Sincronização automática da carteira | 🟢 Pós-MVP |
+| **Renovação de apólices** | Agente de renovação completo | 🟢 Pós-MVP |
+| **Captação de novos clientes** | Agente de novos negócios | 🟢 Pós-MVP |
+| **Dashboard de gestão** | Visão consolidada para a corretora | 🟢 Pós-MVP |
 
 ---
 
@@ -359,10 +369,34 @@ conversations
 
 | Milestone | Semanas | Entregável Principal |
 |---|---|---|
-| M1 — Fundação | 1–3 | Base de dados + WhatsApp configurado + fluxos mapeados |
-| M2 — Agente Renovação | 4–8 | Agente em produção para carteira piloto (auto) |
-| M3 — Agente Sinistros | 7–10 | Agente em produção para tipos mais comuns |
-| **MVP** | **Fim do mês 3** | **Dois agentes operando + primeiras métricas reais** |
+| M1 — Fundação | 1–3 | Infraestrutura (Docker, PostgreSQL, Redis) + WhatsApp configurado + importação inicial da carteira via CSV do Agger |
+| M2 — Agente de Comissionamento | 4–7 | Agente acessando portais das seguradoras, consolidando comissões e emitindo NFS-e automaticamente |
+| M3 — Agente de Sinistros | 6–10 | Agente intermediando sinistros simples (assistência, guincho) e escalando os graves para humano |
+| **MVP** | **Fim do mês 3** | **Dois agentes operando em produção + primeiras métricas reais coletadas** |
+
+### Pós-MVP (fase 2)
+
+| Frente | Descrição |
+|---|---|
+| Agente de Renovação | Régua de follow-up e envio de propostas de renovação via WhatsApp |
+| Agente de Novos Negócios | Captação por indicação e migração de outra corretora com OCR de apólice |
+| Integração Agger | Sincronização automática bidirecional da carteira |
+| Dashboard | Visão consolidada de comissões, sinistros e renovações para a corretora |
+
+---
+
+## 4. Premissas Assumidas
+
+> Levantadas com base em pesquisa de mercado. Devem ser validadas com a corretora antes do início de M1.
+
+| # | Premissa | Validação necessária |
+|---|---|---|
+| P-01 | Cada seguradora tem portal próprio; não há hub único | Confirmar lista de seguradoras que a corretora opera |
+| P-02 | Agger não tem API pública; exportação via CSV | Testar exportação no Agger e confirmar campos disponíveis |
+| P-03 | Bradesco Seguros tem API de corretor documentada | Verificar acesso ao portal de devs com credenciais da corretora |
+| P-04 | 2FA existe em alguns portais; pode ser SMS, e-mail ou TOTP | Mapear tipo de 2FA por seguradora durante M1 |
+| P-05 | NFS-e é emitida em prefeitura municipal via API (Focus NFe) | Confirmar município do CNPJ da corretora e compatibilidade |
+| P-06 | Canal da seguradora para sinistros é WhatsApp ou portal web | Confirmar canal por seguradora durante M1 |
 
 ---
 

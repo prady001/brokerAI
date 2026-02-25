@@ -1,6 +1,17 @@
 flowchart TD
+    CRON["⏰ CRON 08:00 BRT"]
     WA["📱 WhatsApp\nCliente"]
     GW["🔀 API Gateway"]
+
+    COMM["💰 Agente de Comissionamento
+    ─────────────────────
+    Tools:
+    · fetch_commission_data
+    · handle_2fa
+    · consolidate_report
+    · emit_nfse
+    · send_daily_summary
+    · alert_missing_commission"]
 
     ORCH["🧠 Agente Orquestrador
     ─────────────────
@@ -8,60 +19,42 @@ flowchart TD
     • Gerencia estado
     • Controla handoffs"]
 
-    RENEW["📋 Agente de Renovação
-    ─────────────────
-    Tools:
-    · query_policies
-    · evaluate_renewal
-    · get_insurer_quote
-    · send_proposal
-    · schedule_followup
-    · escalate_to_broker"]
-
     CLAIMS["🚨 Agente de Sinistros
-    ─────────────────
+    ─────────────────────
     Tools:
-    · start_fnol_flow
     · classify_claim
-    · request_documents
-    · generate_protocol
-    · trigger_assistance
-    · escalate_to_adjuster"]
-
-    FAQ["💬 FAQ Handler
-    ─────────────────
-    Responde dúvidas
-    gerais com LLM"]
+    · collect_claim_info
+    · open_claim_at_insurer
+    · relay_update_to_client
+    · escalate_to_broker
+    · store_claim_history"]
 
     HUMAN["👤 Corretor Humano
     ─────────────────
     Recebe handoff
-    e age manualmente"]
+    age manualmente"]
 
     REDIS[("Redis\nestado")]
     PG[("PostgreSQL\ndados")]
 
-    WA -->|"mensagem"| GW --> ORCH
+    CRON --> GW -->|"commission-check"| COMM
+    WA -->|"mensagem"| GW -->|"webhook"| ORCH
 
-    ORCH -->|"intent = renewal"| RENEW
-    ORCH -->|"intent = claim"| CLAIMS
-    ORCH -->|"intent = faq"| FAQ
+    ORCH -->|"intent = sinistro"| CLAIMS
     ORCH -->|"intent = unknown"| HUMAN
 
-    RENEW -->|"aceite / VIP / sem resposta"| HUMAN
-    CLAIMS -->|"sinistro complexo / crítico"| HUMAN
+    CLAIMS -->|"sinistro grave / pedido humano"| HUMAN
+    COMM -->|"resumo diário"| WA
 
-    RENEW <-->|"lê e salva estado"| REDIS
     CLAIMS <-->|"lê e salva estado"| REDIS
     ORCH <-->|"lê e salva estado"| REDIS
 
-    RENEW -->|"persiste dados"| PG
-    CLAIMS -->|"persiste dados"| PG
+    COMM -->|"persiste comissões"| PG
+    CLAIMS -->|"persiste sinistros"| PG
 
     HUMAN -->|"responde ao cliente"| WA
 
-    style ORCH fill:#4A90D9,color:#fff
-    style RENEW fill:#27AE60,color:#fff
+    style COMM fill:#2ECC71,color:#fff
     style CLAIMS fill:#E74C3C,color:#fff
-    style FAQ fill:#8E44AD,color:#fff
+    style ORCH fill:#4A90D9,color:#fff
     style HUMAN fill:#F39C12,color:#fff

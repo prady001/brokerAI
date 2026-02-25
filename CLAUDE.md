@@ -18,6 +18,9 @@ This is a **planning-stage project** — only architecture documentation exists.
 | Document Storage | AWS S3 |
 | OCR | Mistral OCR or AWS Textract |
 | WhatsApp | Z-API (webhooks) |
+| Portal Automation (RPA) | Playwright (headless browser) |
+| 2FA Automation | pyotp (TOTP) + SMS gateway / IMAP |
+| NFS-e Emission | Focus NFe API |
 | Email Fallback | SendGrid |
 | Observability | LangSmith + Sentry |
 
@@ -39,30 +42,41 @@ docker compose exec api alembic upgrade head
 docker compose exec api pytest tests/
 
 # Run a single test
-docker compose exec api pytest tests/unit/test_renewal_agent.py::test_evaluate_eligibility -v
+docker compose exec api pytest tests/unit/test_commissioning_agent.py::test_fetch_commission -v
 
 # Run linting
 docker compose exec api ruff check .
 docker compose exec api mypy .
+
+# Install Playwright browsers (for RPA portal automation)
+docker compose exec api playwright install chromium
 ```
 
 ## System Architecture
 
-Three LangGraph agents communicate via WhatsApp (Z-API webhooks) and a daily CRON scheduler:
+Two independent agents: one CRON-triggered (comissionamento) and one WhatsApp-triggered (sinistros):
 
 ```
+CRON (08:00 BRT)  ──►  FastAPI (POST /scheduler/commission-check)
+                              │
+                    Agente de Comissionamento
+                    (acessa portais, consolida, emite NFS-e, notifica)
+                         │
+              CommissionService / NfseService / InsurerPortalService
+                         │
+              PostgreSQL  AWS S3  Focus NFe API  Z-API (resumo)
+
 WhatsApp webhook  ──►  FastAPI (POST /webhook/whatsapp)
-CRON (08:00 BRT)  ──►  FastAPI (POST /scheduler/renewal-check)
                               │
                     Agente Orquestrador
-                    (detects intent, routes, manages handoff)
-                         │            │
-               Agente Renovação    Agente Sinistros
-               (renewal lifecycle) (FNOL → protocol → route)
-                         │            │
-              PolicyService / ClaimService / NotificationService
-                         │            │
-              PostgreSQL  Redis  AWS S3  Z-API  SendGrid
+                    (detecta intenção, roteia, gerencia handoff)
+                              │
+                        Agente de Sinistros
+                        (relay cliente ↔ seguradora)
+                              │
+              ClaimService / NotificationService
+                              │
+              PostgreSQL  Redis  Z-API  WhatsApp seguradora
 ```
 
 **Conversation state** lives in Redis (TTL 30 days) while active, then migrates to PostgreSQL on close.
@@ -81,25 +95,29 @@ Code identifiers (variable names, function names, class names) should be in Engl
 
 All agents follow the same LangGraph pattern:
 
-- **State schema** (`TypedDict`) defined per agent — see `OrchestratorState`, `RenewalState`, `ClaimsState` in `architecture.md`
+- **State schema** (`TypedDict`) defined per agent — see `OrchestratorState`, `CommissioningState`, `ClaimsState` in `architecture.md`
 - **Tools** are Pydantic-typed (`@tool` decorator) — never free-form text actions. Schema validation rejects malformed calls before any side effects.
-- **Human-in-the-loop** by default: no irreversible action (policy emission, payment) executes without human approval. `emit_policy` tool is disabled in MVP.
-- **Prompts** instruct agents to never identify as AI unless directly asked, never negotiate pricing, and never promise values outside confirmed quotes.
+- **Human-in-the-loop** by default: no irreversible action executes without human approval. `emit_policy` tool is disabled in MVP.
+- **Prompts** instruct agents to never identify as AI unless directly asked, never negotiate pricing, and never promise values outside confirmed data.
 
 ## Key Business Rules
 
-**Renewal autonomy criteria** (all must be met for auto-flow):
-- No claims in the policy period
-- Payments up to date
-- Premium variation ≤ 15% (`MAX_AUTO_PREMIUM_VARIATION`)
-- Client is not VIP (annual premium < `VIP_PREMIUM_THRESHOLD`, default R$5000)
-
-**Renewal follow-up schedule**: contact at 30d → 15d → 7d → 2d before expiry; escalate to broker after 3 unanswered attempts.
+**Commissioning agent — daily cycle**:
+- Runs every day at 08:00 BRT via CRON
+- Accesses each configured insurer portal (API or Playwright RPA)
+- Resolves 2FA automatically (TOTP via `pyotp`, email via IMAP, SMS via gateway)
+- Emits NFS-e via Focus NFe API for each confirmed commission
+- Sends consolidated daily report via WhatsApp to the broker
+- Alerts broker for any missing or failed portal access
 
 **Claims severity routing**:
-- `simple` → auto-trigger assistance (`trigger_simple_assistance`)
-- `complex` → escalate to adjuster (`escalate_to_adjuster`)
-- `critical` → immediate manager alert + escalation
+- `simple` (assistência, guincho, vidro) → open claim at insurer → relay updates to client
+- `complex/critical` (colisão, furto, acidente com vítima) → escalate immediately to broker with structured summary
+
+**Portal integration strategy**:
+- Insurers with REST API (e.g., Bradesco Seguros) → direct API integration
+- Insurers without API → Playwright headless browser automation
+- Strategy is configured per insurer in `INSURER_CONFIG`
 
 ## Data Model Summary
 
@@ -109,10 +127,14 @@ Core tables: `clients`, `policies`, `claims`, `conversations`. Sensitive fields 
 
 ```
 agents/
+  commissioning/  graph.py, nodes.py, tools.py, prompts.py
+                  portal_adapters/base.py, api_adapter.py, rpa_adapter.py
+  claims/         graph.py, nodes.py, tools.py, prompts.py
   orchestrator/   graph.py, nodes.py, prompts.py
-  renewal/        graph.py, nodes.py, tools.py, prompts.py
-  claims/         graph.py, nodes.py, tools.py, fnol.py, prompts.py
-services/         policy_service.py, claim_service.py, notification_service.py, scheduler_service.py
+  renewal/        [pós-MVP] graph.py, nodes.py, tools.py, prompts.py
+services/         commission_service.py, nfse_service.py, insurer_portal_service.py
+                  claim_service.py, notification_service.py, scheduler_service.py
+                  policy_service.py
 api/              main.py, routes/webhook.py, routes/scheduler.py, middleware/auth.py
 models/           database.py (SQLAlchemy), schemas.py (Pydantic)
 migrations/       Alembic

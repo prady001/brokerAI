@@ -1,8 +1,8 @@
 # Architecture — Solução de Agentes de IA para Corretora de Seguros
 
-> **Versão:** 1.0  
-> **Data:** Fevereiro de 2026  
-> **Audiência:** Desenvolvedores e Tech Leads  
+> **Versão:** 2.0
+> **Data:** Fevereiro de 2026
+> **Audiência:** Desenvolvedores e Tech Leads
 
 ---
 
@@ -11,11 +11,11 @@
 1. [Visão Geral do Sistema](#1-visão-geral-do-sistema)
 2. [Diagrama de Componentes](#2-diagrama-de-componentes)
 3. [Design dos Agentes](#3-design-dos-agentes)
-   - 3.1 Agente Orquestrador
-   - 3.2 Agente de Renovação
-   - 3.3 Agente de Sinistros
+   - 3.1 Agente de Comissionamento
+   - 3.2 Agente de Sinistros
+   - 3.3 Agente Orquestrador
 4. [Fluxos Detalhados](#4-fluxos-detalhados)
-   - 4.1 Fluxo de Renovação
+   - 4.1 Fluxo de Comissionamento
    - 4.2 Fluxo de Sinistros
 5. [Infraestrutura e Deploy](#5-infraestrutura-e-deploy)
 6. [Decisões de Arquitetura (ADRs)](#6-decisões-de-arquitetura-adrs)
@@ -24,82 +24,262 @@
 
 ## 1. Visão Geral do Sistema
 
-O sistema é composto por **três agentes de IA** orquestrados via LangGraph, que se comunicam com clientes pelo WhatsApp Business API e com sistemas internos via camada de serviços. Humanos permanecem no loop para decisões finais no MVP.
+O sistema é composto por **dois agentes de IA independentes** orquestrados via LangGraph:
+
+- **Agente de Comissionamento:** acionado por CRON diariamente às 08:00 BRT. Acessa portais de seguradoras (via API REST ou automação Playwright), extrai dados de comissão, emite NFS-e via Focus NFe API e envia resumo consolidado para a corretora via WhatsApp.
+
+- **Agente de Sinistros:** acionado por webhook WhatsApp. Recebe o cliente, coleta dados básicos do sinistro, abre o chamado na seguradora pelo canal adequado (API ou WhatsApp da seguradora) e faz o relay das atualizações até o encerramento. Sinistros graves são escalados imediatamente para humano.
 
 ### Princípios arquiteturais
 
-- **Stateful conversations:** cada conversa tem estado persistido — o agente sabe exatamente em que ponto do fluxo o cliente está, mesmo que a conversa dure dias.
-- **Human-in-the-loop by default:** no MVP, nenhuma ação irreversível (emissão, pagamento) é executada sem aprovação humana.
-- **Tools over free-form:** os agentes executam ações via tools estruturadas, não via texto livre — isso garante previsibilidade e rastreabilidade.
-- **Observabilidade total:** todas as chamadas LLM, decisões de roteamento e ações de tools são logadas com trace completo (LangSmith).
+- **Stateful conversations:** estado de sinistros persistido em Redis durante o atendimento, migrado para PostgreSQL ao encerrar.
+- **Human-in-the-loop by default:** sinistros graves e exceções no comissionamento sempre passam pelo corretor humano.
+- **Tools over free-form:** agentes executam ações via tools Pydantic tipadas — sem texto livre interpretado.
+- **Observabilidade total:** todas as chamadas LLM e ações de tools são rastreadas via LangSmith.
+- **Segurança de credenciais:** credenciais de portais de seguradoras armazenadas em arquivo JSON criptografado (AES-256), nunca em variáveis de ambiente diretas.
 
 ---
 
 ## 2. Diagrama de Componentes
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        CANAIS DE ENTRADA                        │
-│                                                                 │
-│   WhatsApp Business API          CRON Scheduler (renovações)   │
-│   (webhooks via Z-API)           (diário, 08:00 BRT)           │
-└────────────────┬────────────────────────────┬───────────────────┘
-                 │ HTTP POST                  │ trigger event
-┌────────────────▼────────────────────────────▼───────────────────┐
-│                        API GATEWAY                              │
-│                    FastAPI — porta 8000                         │
-│                                                                 │
-│   POST /webhook/whatsapp     POST /scheduler/renewal-check     │
-│   POST /webhook/status                                          │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-┌────────────────────────────▼────────────────────────────────────┐
-│                    AGENTE ORQUESTRADOR                          │
-│                  (LangGraph — StateGraph)                       │
-│                                                                 │
-│  1. Detecta intenção (renovação / sinistro / dúvida / outro)   │
-│  2. Carrega estado da conversa (Redis)                          │
-│  3. Roteia para agente especializado                            │
-│  4. Gerencia handoff humano                                     │
-│  5. Persiste estado atualizado (Redis + PostgreSQL)             │
-└──────────────┬──────────────────────────────┬───────────────────┘
-               │                              │
-┌──────────────▼──────────┐    ┌──────────────▼──────────────────┐
-│    AGENTE RENOVAÇÃO     │    │        AGENTE SINISTROS          │
-│   (LangGraph subgraph)  │    │      (LangGraph subgraph)        │
-│                         │    │                                  │
-│  Tools:                 │    │  Tools:                          │
-│  · query_policies       │    │  · start_fnol_flow               │
-│  · evaluate_renewal     │    │  · classify_claim                │
-│  · get_insurer_quote    │    │  · request_documents             │
-│  · send_proposal        │    │  · generate_protocol             │
-│  · schedule_followup    │    │  · trigger_simple_assistance     │
-│  · escalate_to_broker   │    │  · escalate_to_adjuster          │
-│  · [emit_policy*]       │    │  · update_claim_status           │
-└──────────┬──────────────┘    └────────────────┬─────────────────┘
-           │                                    │
-┌──────────▼────────────────────────────────────▼─────────────────┐
-│                       SERVIÇOS INTERNOS                         │
-│                                                                 │
-│  PolicyService   ClaimService   NotificationService   AuthService│
-└──────────┬────────────┬──────────────┬───────────────────────────┘
-           │            │              │
-┌──────────▼──┐  ┌──────▼──────┐  ┌───▼──────────────────────────┐
-│ PostgreSQL  │  │    Redis     │  │   AWS S3 (documentos/fotos)  │
-│ (dados      │  │  (estado de  │  │   Z-API (WhatsApp send)      │
-│  primários) │  │  conversas)  │  │   SendGrid (e-mail fallback) │
-└─────────────┘  └─────────────┘  └──────────────────────────────┘
-
-* emit_policy: desabilitado no MVP
+┌─────────────────────────────────────────────────────────────────────┐
+│                          CANAIS DE ENTRADA                          │
+│                                                                     │
+│   CRON Scheduler (08:00 BRT)        WhatsApp Business API (Z-API)  │
+└──────────────┬──────────────────────────────────┬───────────────────┘
+               │ trigger                          │ HTTP POST webhook
+┌──────────────▼──────────────────────────────────▼───────────────────┐
+│                         API GATEWAY                                  │
+│                     FastAPI — porta 8000                             │
+│                                                                     │
+│  POST /scheduler/commission-check    POST /webhook/whatsapp         │
+└──────────────┬──────────────────────────────────┬───────────────────┘
+               │                                  │
+┌──────────────▼──────────────┐  ┌────────────────▼──────────────────┐
+│   AGENTE DE COMISSIONAMENTO  │  │         AGENTE ORQUESTRADOR        │
+│   (LangGraph — StateGraph)   │  │       (LangGraph — StateGraph)     │
+│                             │  │                                   │
+│  1. Para cada seguradora:   │  │  1. Detecta intenção da mensagem  │
+│     · Acessa portal         │  │  2. Carrega estado (Redis)        │
+│     · Resolve 2FA           │  │  3. Roteia para agente correto    │
+│     · Extrai comissões      │  │  4. Gerencia handoff humano       │
+│  2. Consolida relatório     │  └──────────────────┬────────────────┘
+│  3. Emite NFS-e             │                     │
+│  4. Notifica corretora      │  ┌──────────────────▼────────────────┐
+└──────────────┬──────────────┘  │       AGENTE DE SINISTROS         │
+               │                 │     (LangGraph subgraph)          │
+               │                 │                                   │
+               │                 │  1. Coleta dados do sinistro      │
+               │                 │  2. Classifica severidade         │
+               │                 │  3. Simples → relay com seguradora│
+               │                 │  4. Grave → escala para humano    │
+               │                 └──────────────────┬────────────────┘
+               │                                    │
+┌──────────────▼────────────────────────────────────▼────────────────┐
+│                         SERVIÇOS INTERNOS                           │
+│                                                                     │
+│  CommissionService  NfseService  InsurerPortalService               │
+│  ClaimService       NotificationService  PolicyService              │
+└──────────┬──────────────┬──────────────────────────────────────────┘
+           │              │
+┌──────────▼──┐  ┌────────▼──────┐  ┌──────────────────────────────┐
+│ PostgreSQL  │  │     Redis      │  │  Externos                    │
+│ (dados      │  │  (estado de    │  │  · AWS S3 (docs/fotos)       │
+│  primários) │  │  conversas)    │  │  · Z-API (WhatsApp send)     │
+└─────────────┘  └───────────────┘  │  · Focus NFe API (NFS-e)     │
+                                     │  · Portais seguradoras        │
+                                     │  · SendGrid (e-mail fallback) │
+                                     └──────────────────────────────┘
 ```
 
 ---
 
 ## 3. Design dos Agentes
 
-### 3.1 Agente Orquestrador
+### 3.1 Agente de Comissionamento
 
-**Responsabilidade:** porta de entrada de toda mensagem recebida. Decide para onde rotear sem executar nenhuma lógica de negócio.
+**Responsabilidade:** ciclo completo de baixa de comissão — acesso aos portais, extração, consolidação, emissão de NFS-e e notificação da corretora.
+
+**State Schema (LangGraph):**
+
+```python
+class CommissioningState(TypedDict):
+    run_date: str                        # data de execução (YYYY-MM-DD)
+    insurers_pending: list[str]          # seguradoras ainda não processadas
+    insurers_done: list[str]             # seguradoras processadas com sucesso
+    insurers_failed: list[str]           # seguradoras com falha de acesso
+    commissions: list[dict]              # comissões extraídas no ciclo
+    nfse_emitted: list[dict]             # NFS-e emitidas com sucesso
+    nfse_failed: list[dict]              # NFS-e com falha de emissão
+    report_sent: bool                    # resumo enviado à corretora
+    errors: list[dict]                   # erros detalhados para debug
+```
+
+**Tools:**
+
+```python
+@tool
+def fetch_commission_data(insurer_id: str) -> dict:
+    """
+    Acessa o portal da seguradora e extrai dados de comissão disponíveis.
+    Usa InsurerPortalService que seleciona automaticamente API ou RPA.
+    Retorna: { insurer: str, commissions: list[dict], extracted_at: datetime }
+    """
+
+@tool
+def handle_2fa(insurer_id: str, method: str) -> bool:
+    """
+    Resolve autenticação 2FA para o portal da seguradora.
+    method: 'totp' | 'email' | 'sms'
+    Para TOTP: usa pyotp com chave secreta armazenada no config.
+    Para email/SMS: aguarda código via IMAP ou gateway SMS.
+    """
+
+@tool
+def consolidate_report(commissions: list[dict]) -> dict:
+    """
+    Agrupa comissões de todas as seguradoras em relatório único.
+    Retorna: { total: Decimal, by_insurer: list[dict], date: str }
+    """
+
+@tool
+def emit_nfse(commission: dict) -> dict:
+    """
+    Emite NFS-e via Focus NFe API para uma comissão.
+    Retorna: { nfse_number: str, pdf_url: str, status: str }
+    """
+
+@tool
+def send_daily_summary(report: dict, nfse_results: list[dict]) -> bool:
+    """
+    Envia resumo consolidado do dia via WhatsApp para a corretora.
+    Inclui: total de comissões, NFS-e emitidas, alertas de falha.
+    """
+
+@tool
+def alert_missing_commission(insurer_id: str, reason: str) -> bool:
+    """
+    Notifica corretora sobre seguradora sem dados ou com erro de acesso.
+    """
+```
+
+**System Prompt do Agente:**
+
+```
+Você é o agente de comissionamento da [Nome da Corretora].
+Sua tarefa é processar as comissões do dia de forma autônoma e organizada.
+
+COMPORTAMENTO:
+- Processe cada seguradora na ordem da lista. Não pule nenhuma sem registrar o motivo.
+- Em caso de erro de acesso, registre o erro e continue para a próxima seguradora.
+- Nunca tente adivinhar valores de comissão — use apenas os dados extraídos.
+- Emita uma NFS-e por seguradora, não uma nota global.
+- O resumo final deve ser claro e direto: total recebido, NFS-e emitidas, pendências.
+
+AÇÕES PROIBIDAS:
+- Não acesse portais fora da lista de seguradoras configuradas.
+- Não emita NFS-e sem ter os dados de comissão confirmados.
+- Não envie o resumo antes de processar todas as seguradoras.
+```
+
+---
+
+### 3.2 Agente de Sinistros
+
+**Responsabilidade:** intermediar o sinistro entre cliente e seguradora via WhatsApp. O agente não regula o sinistro — ele faz o relay de forma organizada e escalada quando necessário.
+
+**State Schema (LangGraph):**
+
+```python
+class ClaimsState(TypedDict):
+    conversation_id: str
+    client_id: str
+    client_phone: str
+    policy_id: str                       # identificado pela placa ou número
+    claim_id: str
+    claim_type: str                      # tipo do sinistro
+    severity: str                        # "simple" | "grave"
+    claim_info: dict                     # dados coletados do cliente
+    insurer_channel: str                 # canal usado com a seguradora
+    insurer_thread_id: str               # ID do chamado na seguradora
+    status: str                          # status atual do caso
+    messages: list[dict]                 # histórico completo
+    escalated: bool                      # se foi escalado para humano
+    closed: bool
+```
+
+**Tools:**
+
+```python
+@tool
+def classify_claim(claim_type: str, description: str) -> dict:
+    """
+    Classifica o sinistro em simples ou grave.
+    Simples: guincho, pane, troca de pneu, vidros, pequenos danos.
+    Grave: colisão com terceiros, furto/roubo, incêndio, acidente com vítima.
+    Retorna: { severity: 'simple' | 'grave', auto_resolve: bool }
+    """
+
+@tool
+def collect_claim_info(conversation_id: str) -> dict:
+    """
+    Coleta dados mínimos necessários: tipo, localização, placa/apólice.
+    Retorna os dados coletados estruturados.
+    """
+
+@tool
+def open_claim_at_insurer(claim_id: str, insurer_id: str, claim_info: dict) -> dict:
+    """
+    Abre chamado na seguradora via canal configurado (API ou WhatsApp relay).
+    Retorna: { thread_id: str, channel: str, opened_at: datetime }
+    """
+
+@tool
+def relay_update_to_client(conversation_id: str, update: str) -> bool:
+    """
+    Repassa resposta ou atualização da seguradora ao cliente via WhatsApp.
+    """
+
+@tool
+def escalate_to_broker(claim_id: str, reason: str, summary: dict) -> bool:
+    """
+    Notifica corretor humano com resumo estruturado do sinistro.
+    summary: { client, policy, claim_type, description, timeline }
+    """
+
+@tool
+def store_claim_history(claim_id: str) -> bool:
+    """
+    Persiste histórico completo da conversa no PostgreSQL ao encerrar.
+    """
+```
+
+**System Prompt do Agente:**
+
+```
+Você é o assistente de sinistros da [Nome da Corretora].
+Seu papel é ajudar o cliente a acionar o seguro de forma rápida e tranquila.
+
+COMPORTAMENTO:
+- Seja empático. Clientes em sinistro geralmente estão estressados.
+- Colete as informações necessárias de forma natural, não como um formulário.
+- Para guincho e assistência: agilidade é prioridade — colete o mínimo e acione.
+- Para casos graves: seja claro que um corretor especializado vai assumir o caso.
+- Mantenha o cliente informado a cada atualização recebida da seguradora.
+- Nunca prometa prazos ou valores que não foram confirmados pela seguradora.
+
+AÇÕES PROIBIDAS:
+- Não tente resolver sinistros graves sem escalar para humano.
+- Não prometa indenizações ou coberturas sem confirmação da seguradora.
+- Não identifique-se como IA a menos que o cliente pergunte diretamente.
+```
+
+---
+
+### 3.3 Agente Orquestrador
+
+**Responsabilidade:** porta de entrada das mensagens WhatsApp. Detecta a intenção e roteia para o Agente de Sinistros ou para humano. No MVP, o único agente ativo no canal WhatsApp é o de sinistros.
 
 **State Schema (LangGraph):**
 
@@ -108,30 +288,12 @@ class OrchestratorState(TypedDict):
     conversation_id: str
     client_id: str
     client_phone: str
-    message: str                    # mensagem atual do cliente
-    message_history: list[dict]     # histórico completo
-    intent: str                     # "renewal" | "claim" | "faq" | "unknown"
-    active_agent: str               # agente ativo no momento
-    handoff_requested: bool         # flag de escalonamento humano
+    message: str
+    message_history: list[dict]
+    intent: str                          # "claim" | "faq" | "unknown"
+    active_agent: str
+    handoff_requested: bool
     handoff_reason: str
-```
-
-**Nó de detecção de intenção:**
-
-```python
-INTENT_DETECTION_PROMPT = """
-Você é o orquestrador de atendimento de uma corretora de seguros.
-Analise a mensagem do cliente e classifique em uma das categorias:
-
-- "renewal"   → cliente fala sobre renovação, vencimento, apólice, seguro
-- "claim"     → cliente fala sobre sinistro, acidente, roubo, dano, batida
-- "faq"       → pergunta geral sobre coberturas, preços, documentos
-- "unknown"   → não identificado ou fora do escopo
-
-Retorne apenas o JSON: {"intent": "<categoria>", "confidence": <0.0-1.0>}
-
-Mensagem: {message}
-"""
 ```
 
 **Grafo de roteamento:**
@@ -140,7 +302,6 @@ Mensagem: {message}
 graph = StateGraph(OrchestratorState)
 
 graph.add_node("detect_intent", detect_intent_node)
-graph.add_node("renewal_agent", renewal_subgraph)
 graph.add_node("claims_agent",  claims_subgraph)
 graph.add_node("faq_handler",   faq_handler_node)
 graph.add_node("human_handoff", human_handoff_node)
@@ -148,242 +309,69 @@ graph.add_node("human_handoff", human_handoff_node)
 graph.set_entry_point("detect_intent")
 
 graph.add_conditional_edges("detect_intent", route_by_intent, {
-    "renewal":  "renewal_agent",
     "claim":    "claims_agent",
     "faq":      "faq_handler",
     "unknown":  "human_handoff",
 })
-
-graph.add_edge("renewal_agent", END)
-graph.add_edge("claims_agent",  END)
-graph.add_edge("faq_handler",   END)
-graph.add_edge("human_handoff", END)
 ```
 
----
-
-### 3.2 Agente de Renovação
-
-**Responsabilidade:** gerenciar todo o ciclo de renovação — desde a detecção do vencimento até o handoff para o corretor fechar.
-
-**State Schema:**
-
-```python
-class RenewalState(TypedDict):
-    client_id: str
-    policy_id: str
-    policy: dict                # dados completos da apólice
-    quote: dict                 # cotação da seguradora
-    renewal_eligibility: str    # "auto" | "manual" | "blocked"
-    eligibility_reason: str
-    proposal_sent: bool
-    proposal_sent_at: datetime
-    client_response: str        # "accepted" | "declined" | "pending" | "question"
-    followup_count: int
-    conversation_stage: str     # estágio atual do fluxo
-    messages: list[dict]
-```
-
-**Tools:**
-
-```python
-@tool
-def query_policies(days_to_expiry: int) -> list[dict]:
-    """Retorna apólices com vencimento nos próximos N dias."""
-
-@tool
-def evaluate_renewal_eligibility(policy_id: str) -> dict:
-    """
-    Avalia se a apólice pode ser renovada automaticamente.
-    Retorna: { eligible: bool, mode: 'auto'|'manual', reason: str }
-    Regras:
-    - Sem sinistros no período: +auto
-    - Pagamento em dia: +auto
-    - Variação de prêmio <= 15%: +auto
-    - Qualquer condição acima não atendida: manual
-    - Cliente VIP: sempre manual
-    """
-
-@tool
-def get_insurer_quote(policy_id: str) -> dict:
-    """Busca cotação atualizada da seguradora. Retorna valor e condições."""
-
-@tool
-def send_whatsapp_proposal(client_phone: str, template: str, params: dict) -> bool:
-    """Envia proposta de renovação via WhatsApp usando template aprovado."""
-
-@tool
-def schedule_followup(conversation_id: str, delay_days: int, message_type: str) -> bool:
-    """Agenda lembrete automático se cliente não responder."""
-
-@tool
-def escalate_to_broker(conversation_id: str, reason: str, summary: str) -> bool:
-    """
-    Notifica corretor humano com resumo da conversa.
-    Usado quando: aceite recebido, VIP, condição manual, sem resposta após 3 tentativas.
-    """
-```
-
-**System Prompt do Agente:**
+**Prompt de detecção de intenção:**
 
 ```
-Você é um assistente de renovação de seguros da [Nome da Corretora].
-Seu objetivo é ajudar o cliente a renovar o seguro de forma simples e rápida pelo WhatsApp.
+Você é o orquestrador de atendimento de uma corretora de seguros.
+Analise a mensagem do cliente e classifique:
 
-REGRAS DE COMPORTAMENTO:
-- Seja direto, amigável e profissional. Nunca use jargão técnico.
-- Nunca prometa valores ou condições que não estejam na cotação confirmada.
-- Se o cliente pedir desconto, reconheça o pedido e escale para o corretor — nunca negocie sozinho.
-- Se não souber a resposta, diga que vai verificar e escale para humano.
-- Nunca pressione o cliente. Se ele disser que vai pensar, agradeça e agende um lembrete.
-- Nunca mencione que é uma IA, a menos que o cliente pergunte diretamente.
+- "claim"   → sinistro, acidente, roubo, dano, guincho, pane, vidro quebrado
+- "faq"     → dúvida geral sobre cobertura, vencimento, boleto, documentos
+- "unknown" → não identificado, reclamação, ou fora do escopo
 
-AÇÕES PROIBIDAS SEM APROVAÇÃO HUMANA:
-- Emitir ou confirmar emissão de apólice
-- Alterar coberturas ou condições da proposta
-- Prometer devolução de valores
-```
+Retorne apenas o JSON: {"intent": "<categoria>", "confidence": <0.0-1.0>}
 
----
-
-### 3.3 Agente de Sinistros
-
-**Responsabilidade:** receber o aviso de sinistro, conduzir a coleta estruturada (FNOL), classificar, gerar protocolo e rotear para o caminho correto.
-
-**State Schema:**
-
-```python
-class ClaimsState(TypedDict):
-    client_id: str
-    policy_id: str
-    claim_id: str
-    protocol_number: str
-    fnol_stage: str             # estágio do formulário FNOL
-    fnol_data: dict             # dados coletados até o momento
-    claim_type: str             # tipo classificado
-    severity: str               # "simple" | "complex" | "critical"
-    documents_requested: list
-    documents_received: list
-    protocol_sent: bool
-    routed_to: str              # "auto_assistance" | "adjuster" | "manager"
-    messages: list[dict]
-```
-
-**FNOL — Estrutura de coleta:**
-
-```python
-FNOL_FIELDS = [
-    {
-        "field": "claim_type",
-        "question": "O que aconteceu com seu veículo/bem segurado?",
-        "options": ["Colisão", "Furto/Roubo", "Incêndio", "Vidros", "Assistência 24h", "Outro"],
-        "required": True
-    },
-    {
-        "field": "occurrence_date",
-        "question": "Quando aconteceu? (data e hora aproximada)",
-        "required": True
-    },
-    {
-        "field": "occurrence_location",
-        "question": "Onde aconteceu? (cidade, bairro ou endereço)",
-        "required": True
-    },
-    {
-        "field": "description",
-        "question": "Me conte o que aconteceu em detalhes.",
-        "required": True
-    },
-    {
-        "field": "third_parties",
-        "question": "Havia terceiros envolvidos? (outros veículos, pessoas)",
-        "required": False,
-        "condition": "claim_type in ['collision']"
-    },
-    {
-        "field": "police_report",
-        "question": "Você registrou boletim de ocorrência?",
-        "required": False,
-        "condition": "claim_type in ['theft', 'robbery', 'fire']"
-    },
-]
-```
-
-**Tools:**
-
-```python
-@tool
-def classify_claim(fnol_data: dict) -> dict:
-    """
-    Classifica o sinistro em tipo e severidade.
-    Retorna: { type: str, severity: 'simple'|'complex'|'critical', auto_resolve: bool }
-    """
-
-@tool
-def generate_protocol(claim_id: str) -> str:
-    """Gera número de protocolo único e registra no banco."""
-
-@tool
-def request_documents(claim_id: str, claim_type: str) -> list[str]:
-    """Retorna lista de documentos necessários para o tipo de sinistro."""
-
-@tool
-def trigger_simple_assistance(claim_id: str, assistance_type: str, location: str) -> dict:
-    """Aciona prestador de assistência para sinistros simples. Retorna ETA."""
-
-@tool
-def escalate_to_adjuster(claim_id: str, severity: str, summary: str) -> bool:
-    """Notifica regulador/perito com dossiê completo do sinistro."""
-
-@tool
-def update_claim_status(claim_id: str, status: str, message_to_client: str) -> bool:
-    """Atualiza status e notifica cliente proativamente."""
+Mensagem: {message}
 ```
 
 ---
 
 ## 4. Fluxos Detalhados
 
-### 4.1 Fluxo de Renovação
+### 4.1 Fluxo de Comissionamento
 
 ```
-CRON diário (08:00)
+CRON dispara às 08:00 BRT
         │
         ▼
-query_policies(days=30)
+Carrega lista de seguradoras configuradas
         │
-        ├─── Para cada apólice elegível:
+        ├─── Para cada seguradora:
         │
         ▼
-evaluate_renewal_eligibility(policy_id)
+fetch_commission_data(insurer_id)
         │
-        ├── mode = "auto" ──────────────────────────────────────────┐
-        │                                                            │
-        ├── mode = "manual" ──► notifica corretor ──► FIM           │
-        │                                                            ▼
-        └── blocked ──► registra motivo ──► FIM          get_insurer_quote(policy_id)
-                                                                     │
-                                                                     ▼
-                                                      send_whatsapp_proposal(client)
-                                                                     │
-                                                          ┌──────────┴──────────┐
-                                                          │  aguarda resposta    │
-                                                          │  (estado em Redis)   │
-                                                          └──────────┬──────────┘
-                                                                     │
-                                          ┌──────────────────────────┼──────────────────────┐
-                                          │                          │                      │
-                                    "accepted"                  "question"              sem resposta
-                                          │                          │                      │
-                                          ▼                          ▼                      ▼
-                              escalate_to_broker           LLM responde            schedule_followup
-                              (corretor emite)             (até 3 trocas)          (régua: 15d, 7d, 2d)
-                                                                     │                      │
-                                                                     ▼               após 3 tentativas
-                                                           "still_pending"                  │
-                                                                     │                      ▼
-                                                                     ▼           escalate_to_broker
-                                                        escalate_to_broker       (último recurso)
+        ├── Tem API REST? ──► chama API com OAuth token
+        │
+        └── Sem API? ──────► Playwright abre portal em modo headless
+                                    │
+                              Exige 2FA?
+                                    ├── TOTP → pyotp.now()
+                                    ├── E-mail → IMAP lê código
+                                    └── SMS → gateway lê código
+                                    │
+                              Extrai dados de comissão
+                                    │
+                              handle_2fa + store → PostgreSQL
+        │
+        ▼ (após todas as seguradoras)
+consolidate_report(commissions)
+        │
+        ▼
+Para cada comissão confirmada:
+emit_nfse(commission)  ──►  Focus NFe API  ──►  NFS-e emitida
+        │
+        ▼
+send_daily_summary(report, nfse_results)  ──►  WhatsApp corretora
+        │
+        ▼
+Registra alertas para seguradoras com falha
 ```
 
 ### 4.2 Fluxo de Sinistros
@@ -395,53 +383,31 @@ Cliente manda mensagem no WhatsApp
     Orquestrador detecta intent = "claim"
               │
               ▼
-    Agente Sinistros iniciado
+    collect_claim_info
+    (tipo, localização, placa/apólice)
               │
               ▼
-    ┌─── FNOL Collection Loop ────────────────────────────────┐
-    │                                                          │
-    │  Para cada campo em FNOL_FIELDS:                        │
-    │    1. Agente faz pergunta natural (não robótica)        │
-    │    2. Aguarda resposta do cliente                       │
-    │    3. Extrai e valida dado                              │
-    │    4. Se inválido → pede de novo com orientação         │
-    │    5. Se válido → avança para próximo campo             │
-    │                                                          │
-    └─────────────────────────────────────────────────────────┘
+    classify_claim(claim_type, description)
               │
-              ▼
-    classify_claim(fnol_data)
-              │
-              ├── severity = "simple" ─────────────────────────────────────────┐
-              │                                                                  │
-              ├── severity = "complex" ──────────────────────────────────┐      │
-              │                                                           │      │
-              └── severity = "critical" ──► alerta gestor IMEDIATO       │      │
-                                           + mensagem tranquilizadora     │      │
-                                           ao cliente                     │      │
-                                                                          ▼      ▼
-                                                              escalate_      trigger_
-                                                              to_adjuster    simple_
-                                                                    │        assistance
-                                                                    │              │
-                                                  ┌─────────────────┴──────────────┘
-                                                  │
-                                                  ▼
-                                      generate_protocol(claim_id)
-                                                  │
-                                                  ▼
-                                      request_documents(claim_type)
-                                                  │
-                                                  ▼
-                                      Envia protocolo + checklist ao cliente
-                                                  │
-                                                  ▼
-                                      Aguarda upload de documentos
-                                      (estado persiste em Redis)
-                                                  │
-                                                  ▼
-                                      update_claim_status → notifica cliente
-                                      (a cada mudança de status)
+              ├── severity = "grave" ──────────────────────────────┐
+              │                                                      │
+              └── severity = "simple"                               │
+                        │                                           ▼
+                        ▼                              escalate_to_broker
+              open_claim_at_insurer                    (resumo estruturado)
+                        │                                           │
+                  aguarda resposta                    Cliente recebe aviso
+                  da seguradora                       que corretor assumiu
+                  (estado em Redis)                              │
+                        │                                    Humano atende
+                        ▼
+              relay_update_to_client
+              (repassa resposta ao cliente)
+                        │
+                  caso encerrado? ──► não ──► aguarda
+                        │
+                        ▼ (sim)
+              store_claim_history (PostgreSQL)
 ```
 
 ---
@@ -459,47 +425,55 @@ Cliente manda mensagem no WhatsApp
 ### Estrutura de Repositório
 
 ```
-insurance-agents/
+brokerAI/
 ├── agents/
+│   ├── commissioning/
+│   │   ├── graph.py              # StateGraph do agente de comissionamento
+│   │   ├── nodes.py              # Nós: fetch, consolidate, emit, notify
+│   │   ├── tools.py              # Tools: fetch_commission_data, handle_2fa, emit_nfse...
+│   │   ├── prompts.py            # System prompt do agente
+│   │   └── portal_adapters/
+│   │       ├── base.py           # Classe abstrata InsurerAdapter
+│   │       ├── api_adapter.py    # Adapter para seguradoras com API REST
+│   │       └── rpa_adapter.py    # Adapter Playwright para portais sem API
+│   ├── claims/
+│   │   ├── graph.py              # Subgraph do agente de sinistros
+│   │   ├── nodes.py              # Nós: collect, classify, relay, escalate
+│   │   ├── tools.py              # Tools: classify_claim, open_claim_at_insurer...
+│   │   └── prompts.py            # System prompt do agente
 │   ├── orchestrator/
-│   │   ├── graph.py          # StateGraph do orquestrador
-│   │   ├── nodes.py          # Nós: detect_intent, route, handoff
-│   │   └── prompts.py
-│   ├── renewal/
-│   │   ├── graph.py          # Subgraph de renovação
-│   │   ├── nodes.py
-│   │   ├── tools.py          # Todas as tools do agente
-│   │   └── prompts.py
-│   └── claims/
-│       ├── graph.py          # Subgraph de sinistros
-│       ├── nodes.py
-│       ├── tools.py
-│       ├── fnol.py           # Lógica de coleta FNOL
-│       └── prompts.py
+│   │   ├── graph.py              # Grafo de roteamento WhatsApp
+│   │   ├── nodes.py              # Nó de detecção de intenção
+│   │   └── prompts.py            # Prompt de classificação de intenção
+│   └── renewal/                  # [PÓS-MVP] agente de renovação de apólices
+│       └── README.md
 ├── services/
-│   ├── policy_service.py     # CRUD de apólices
-│   ├── claim_service.py      # CRUD de sinistros
-│   ├── notification_service.py  # WhatsApp + e-mail
-│   └── scheduler_service.py  # CRON jobs
+│   ├── commission_service.py     # CRUD de comissões
+│   ├── nfse_service.py           # Emissão de NFS-e via Focus NFe API
+│   ├── insurer_portal_service.py # Seleção e invocação de adapters por seguradora
+│   ├── claim_service.py          # CRUD de sinistros
+│   ├── notification_service.py   # WhatsApp (Z-API) + e-mail (SendGrid)
+│   ├── policy_service.py         # Consulta de apólices (importadas do Agger)
+│   └── scheduler_service.py      # CRON jobs (APScheduler)
 ├── api/
-│   ├── main.py               # FastAPI app
+│   ├── main.py                   # FastAPI app
 │   ├── routes/
-│   │   ├── webhook.py        # POST /webhook/whatsapp
-│   │   └── scheduler.py      # POST /scheduler/renewal-check
+│   │   ├── webhook.py            # POST /webhook/whatsapp
+│   │   └── scheduler.py          # POST /scheduler/commission-check
 │   └── middleware/
-│       └── auth.py
+│       └── auth.py               # Validação de assinaturas Z-API e CRON
 ├── models/
-│   ├── database.py           # SQLAlchemy models
-│   └── schemas.py            # Pydantic schemas
+│   ├── database.py               # SQLAlchemy models
+│   └── schemas.py                # Pydantic schemas
+├── config/
+│   └── insurers.json.enc         # Credenciais criptografadas por seguradora
+├── scripts/
+│   └── install_browsers.py       # Instala Playwright Chromium
 ├── tests/
 │   ├── unit/
 │   ├── integration/
 │   └── fixtures/
-├── migrations/               # Alembic
-├── docker-compose.yml
-├── Dockerfile
-├── .env.example
-└── README.md
+└── migrations/                   # Alembic
 ```
 
 ### Variáveis de Ambiente
@@ -522,64 +496,149 @@ AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_S3_BUCKET=
 
+# NFS-e
+FOCUS_NFE_API_KEY=
+FOCUS_NFE_BASE_URL=https://producao.focusnfe.com.br
+BROKER_CNPJ=
+BROKER_CITY_CODE=
+
+# 2FA / SMS Gateway
+SMS_GATEWAY_PROVIDER=
+SMS_GATEWAY_API_KEY=
+SMS_GATEWAY_FROM_NUMBER=
+
+# 2FA / Email IMAP
+IMAP_HOST=
+IMAP_PORT=993
+IMAP_USER=
+IMAP_PASSWORD=
+
+# Credenciais de seguradoras (arquivo criptografado)
+INSURER_CREDENTIALS_PATH=./config/insurers.json.enc
+INSURER_CREDENTIALS_KEY=
+
 # Notificações
 SENDGRID_API_KEY=
+BROKER_NOTIFICATION_PHONE=
+BROKER_NOTIFICATION_EMAIL=
+
+# Schedule
+COMMISSION_CRON_HOUR=8
+COMMISSION_CRON_TIMEZONE=America/Sao_Paulo
 
 # Observabilidade
-LANGCHAIN_API_KEY=           # LangSmith
+LANGCHAIN_API_KEY=
 LANGCHAIN_TRACING_V2=true
 SENTRY_DSN=
 
-# Configuração da corretora
-BROKER_NOTIFICATION_PHONE=   # número do corretor no WhatsApp
-BROKER_NOTIFICATION_EMAIL=
-VIP_PREMIUM_THRESHOLD=5000   # valor mínimo para cliente VIP (R$)
-MAX_AUTO_PREMIUM_VARIATION=0.15  # 15%
+# Ambiente
+ENVIRONMENT=development
 ```
 
-### Docker Compose (desenvolvimento)
+### Modelo de Dados
 
-```yaml
-version: '3.9'
+**Entidade: Commission (Comissão)**
 
-services:
-  api:
-    build: .
-    ports:
-      - "8000:8000"
-    env_file: .env
-    depends_on:
-      - postgres
-      - redis
-    volumes:
-      - .:/app
+```sql
+commissions
+  id                UUID PRIMARY KEY
+  insurer_id        UUID REFERENCES insurers(id)
+  policy_id         UUID REFERENCES policies(id)
+  client_id         UUID REFERENCES clients(id)
+  reference_month   VARCHAR              -- competência (YYYY-MM)
+  gross_amount      DECIMAL
+  net_amount        DECIMAL
+  commission_rate   DECIMAL
+  nfse_number       VARCHAR              -- número da NFS-e emitida
+  nfse_pdf_url      VARCHAR              -- link S3
+  status            ENUM (pending, nfse_emitted, nfse_failed)
+  extracted_at      TIMESTAMP
+  nfse_emitted_at   TIMESTAMP
+  created_at        TIMESTAMP
+```
 
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: insurance_agents
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+**Entidade: Insurer (Seguradora)**
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+```sql
+insurers
+  id                UUID PRIMARY KEY
+  name              VARCHAR
+  code              VARCHAR UNIQUE       -- código interno (ex: bradesco, porto, hdi)
+  portal_url        VARCHAR
+  integration_type  ENUM (api, rpa)
+  two_fa_method     ENUM (totp, email, sms, none)
+  active            BOOLEAN DEFAULT true
+  created_at        TIMESTAMP
+  updated_at        TIMESTAMP
+```
 
-  scheduler:
-    build: .
-    command: python -m services.scheduler_service
-    env_file: .env
-    depends_on:
-      - postgres
-      - redis
+**Entidade: Claim (Sinistro)**
 
-volumes:
-  postgres_data:
+```sql
+claims
+  id                UUID PRIMARY KEY
+  policy_id         UUID REFERENCES policies(id)
+  client_id         UUID REFERENCES clients(id)
+  insurer_id        UUID REFERENCES insurers(id)
+  type              ENUM (assistance, glass, collision, theft, fire, other)
+  severity          ENUM (simple, grave)
+  status            ENUM (open, in_progress, waiting_insurer, escalated, closed)
+  insurer_thread_id VARCHAR              -- ID do chamado na seguradora
+  insurer_channel   VARCHAR              -- canal usado (api, whatsapp, phone)
+  occurrence_date   TIMESTAMP
+  occurrence_location JSONB
+  description       TEXT
+  documents         JSONB                -- array de URLs S3
+  escalated_to      UUID REFERENCES users(id)
+  opened_at         TIMESTAMP
+  closed_at         TIMESTAMP
+```
+
+**Entidade: Client (Cliente)**
+
+```sql
+clients
+  id                UUID PRIMARY KEY
+  full_name         VARCHAR
+  cpf_cnpj          VARCHAR UNIQUE
+  phone_whatsapp    VARCHAR
+  email             VARCHAR
+  created_at        TIMESTAMP
+  updated_at        TIMESTAMP
+```
+
+**Entidade: Policy (Apólice)**
+
+```sql
+policies
+  id                UUID PRIMARY KEY
+  client_id         UUID REFERENCES clients(id)
+  insurer_id        UUID REFERENCES insurers(id)
+  policy_number     VARCHAR UNIQUE
+  type              ENUM (auto, life, home, business, health)
+  status            ENUM (active, expired, cancelled)
+  premium_amount    DECIMAL
+  start_date        DATE
+  end_date          DATE
+  imported_from     VARCHAR              -- 'agger_csv' ou 'manual'
+  created_at        TIMESTAMP
+  updated_at        TIMESTAMP
+```
+
+**Entidade: Conversation (Conversa)**
+
+```sql
+conversations
+  id                UUID PRIMARY KEY
+  client_id         UUID REFERENCES clients(id)
+  claim_id          UUID REFERENCES claims(id)
+  type              ENUM (claim, faq, support)
+  status            ENUM (active, waiting_client, waiting_insurer, escalated, closed)
+  messages          JSONB                -- histórico completo
+  human_assigned    UUID REFERENCES users(id)
+  started_at        TIMESTAMP
+  updated_at        TIMESTAMP
+  closed_at         TIMESTAMP
 ```
 
 ---
@@ -588,51 +647,71 @@ volumes:
 
 ### ADR-001 — LangGraph como framework de orquestração
 
-**Contexto:** O sistema precisa gerenciar conversas que duram dias, com estado complexo, loops de coleta de informação e handoffs entre agentes e humanos.
+**Contexto:** O sistema precisa gerenciar conversas que duram horas/dias, com estado complexo e handoffs entre agentes e humanos.
 
 **Decisão:** Usar LangGraph.
 
-**Motivo:** LangGraph foi construído exatamente para fluxos stateful e cíclicos — algo que LangChain simples ou chamadas diretas de LLM não suportam bem. Oferece visualização do grafo, suporte nativo a Human-in-the-Loop e integração com LangSmith para observabilidade. CrewAI foi considerado, mas é mais adequado para agentes paralelos autônomos, não para fluxos conversacionais com estado.
+**Motivo:** LangGraph foi construído para fluxos stateful e cíclicos — essencial tanto para o ciclo de comissionamento (loop por seguradora) quanto para o relay de sinistros (aguarda resposta da seguradora). Suporte nativo a Human-in-the-Loop e integração com LangSmith.
 
 ---
 
 ### ADR-002 — Claude (Anthropic) como LLM base
 
-**Contexto:** O sistema vai processar informações sensíveis de clientes, tomar decisões de roteamento e conduzir conversas em português brasileiro.
+**Contexto:** O sistema processa informações sensíveis e conduz conversas em português brasileiro.
 
-**Decisão:** Usar Claude Sonnet como modelo de produção.
+**Decisão:** Claude Sonnet em produção, Claude Haiku em desenvolvimento.
 
-**Motivo:** Claude apresenta desempenho superior em português, melhor seguimento de instruções complexas (system prompt com regras de negócio) e menor taxa de alucinações em tarefas estruturadas. GPT-4o foi considerado, mas Claude tem melhor relação custo/qualidade para este caso de uso específico. Haiku é usado em staging para reduzir custo de testes.
+**Motivo:** Melhor desempenho em português, seguimento de instruções complexas e menor taxa de alucinações em tarefas estruturadas. Haiku em dev reduz custo de testes sem comprometer a validação do fluxo.
 
 ---
 
-### ADR-003 — Redis para estado de conversas
+### ADR-003 — Redis para estado de conversas de sinistros
 
-**Contexto:** Conversas podem ficar abertas por dias (cliente não responde imediatamente). O estado precisa ser rápido de ler/escrever e ter TTL configurável.
+**Contexto:** Conversas de sinistro podem ficar abertas por horas (aguardando resposta da seguradora).
 
-**Decisão:** Persistir estado ativo de conversas em Redis, com TTL de 30 dias.
+**Decisão:** Persistir estado ativo em Redis com TTL de 30 dias; migrar para PostgreSQL ao encerrar.
 
-**Motivo:** Redis oferece acesso em microsegundos, suporte a TTL nativo e estruturas de dados flexíveis (Hash para estado, List para histórico). Ao fechar a conversa, o estado final é migrado para PostgreSQL. Persistir tudo em PostgreSQL seria mais lento e geraria volume desnecessário de escritas durante conversas ativas.
+**Motivo:** Acesso em microsegundos durante a conversa ativa. TTL nativo evita acúmulo de conversas abandonadas. PostgreSQL fica limpo com apenas histórico finalizado.
 
 ---
 
 ### ADR-004 — Tools estruturadas vs. function calling livre
 
-**Contexto:** Os agentes precisam executar ações reais (consultar banco, enviar mensagem, escalar). Há risco do LLM "inventar" ações ou parâmetros.
+**Contexto:** Agentes executam ações reais (acessar portais, emitir notas fiscais, abrir sinistros).
 
-**Decisão:** Todas as ações são implementadas como tools Pydantic tipadas, não como texto livre interpretado.
+**Decisão:** Todas as ações via tools Pydantic tipadas.
 
-**Motivo:** Tools com schema Pydantic forçam o LLM a passar parâmetros estruturados e válidos — a camada de validação rejeita chamadas malformadas antes de qualquer efeito colateral. Isso é crítico em um sistema financeiro. Text-based function calling foi descartado por falta de garantia de schema.
+**Motivo:** Schema Pydantic força parâmetros estruturados e válidos. A camada de validação rejeita chamadas malformadas antes de qualquer efeito colateral — crítico para operações financeiras e jurídicas.
 
 ---
 
 ### ADR-005 — Emissão de apólice bloqueada no MVP
 
-**Contexto:** Tecnicamente seria possível integrar com a seguradora e emitir automaticamente. O cliente quer MVP em 3 meses.
+**Contexto:** Emissão automática requer integração homologada com cada seguradora.
 
-**Decisão:** Bloquear `emit_policy` no MVP. O agente leva o cliente até o aceite e escala para o corretor emitir.
+**Decisão:** `emit_policy` bloquado no MVP. Corretor emite manualmente após handoff.
 
-**Motivo:** Emissão automática requer integração homologada com cada seguradora (processo burocrático de semanas), validação jurídica e testes extensivos. O risco de emitir com dados errados é alto e o custo para corrigir é maior que o benefício no MVP. O corretor emite manualmente em menos de 5 minutos após receber o handoff — já é uma melhoria enorme sobre o processo atual.
+**Motivo:** Integração homologada exige semanas de processo burocrático por seguradora. O risco de emitir com dados errados supera o benefício no prazo do MVP.
+
+---
+
+### ADR-006 — Playwright para automação de portais sem API
+
+**Contexto:** Nem todas as seguradoras têm API REST para extração de comissões.
+
+**Decisão:** Usar Playwright em modo headless para portais sem API.
+
+**Motivo:** Playwright é mais robusto que Selenium para sites modernos (SPAs, lazy loading). Suporta contextos de browser isolados por seguradora. A Agger já prova a viabilidade do modelo: faz exatamente isso para importar extratos. Risco: quebra se o portal mudar o layout — mitigado com testes de screenshot e alertas de falha.
+
+---
+
+### ADR-007 — Focus NFe para emissão de NFS-e
+
+**Contexto:** A corretora precisa emitir nota fiscal de serviços para cada comissão recebida. Cada município tem API diferente.
+
+**Decisão:** Usar Focus NFe como camada de abstração para NFS-e.
+
+**Motivo:** Focus NFe cobre mais de 1.400 municípios com uma única API REST + JSON. Elimina a necessidade de integrar com cada prefeitura separadamente. Custo por nota é baixo (R$ 0,10–0,30). Alternativas (NFE.io, PlugNotas) têm modelo similar — Focus foi escolhido por documentação mais completa.
 
 ---
 

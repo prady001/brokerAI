@@ -1,50 +1,48 @@
 flowchart TD
-    MSG["📱 Cliente envia mensagem\nno WhatsApp"]
-    DETECT["Orquestrador detecta\nintent = claim"]
-    FNOL["Coleta FNOL\nguiada pelo agente"]
+    CLIENT["📱 Cliente envia mensagem\nno WhatsApp da corretora"]
 
-    F1["Tipo do sinistro"]
-    F2["Data e hora"]
-    F3["Local do ocorrido"]
-    F4["Descrição detalhada"]
-    F5["Terceiros envolvidos?"]
-    F6["Boletim de ocorrência?"]
+    ORCH["🧠 Orquestrador\ndetecta intent = sinistro"]
 
-    CLASSIFY["Classifica sinistro\ntipo + severidade"]
+    COLLECT["collect_claim_info\ncoleta tipo, localização\ne dados da apólice/placa"]
 
-    SIMPLE["🟢 SIMPLES\nvidros / assistência 24h"]
-    COMPLEX["🟡 COMPLEXO\ncolisão / furto / incêndio"]
-    CRITICAL["🔴 CRÍTICO\nacidente com vítima"]
+    CLASSIFY["classify_claim\nclassifica severidade"]
 
-    ASSIST["Aciona prestador\nautomaticamente"]
-    ADJUSTER["Notifica regulador\ncom dossiê completo"]
-    MANAGER["🚨 Alerta gestor\nIMMEDIATAMENTE"]
+    SIMPLE{{"Sinistro simples?\n(guincho, assistência,\nvidro)"}}
 
-    PROTO["Gera protocolo\nnumerado"]
-    DOCS["Envia checklist\nde documentos"]
-    UPLOAD["Aguarda uploads\ndo cliente"]
-    STATUS["Atualiza status\nproativamente"]
+    GRAVE["⚠️ Sinistro grave\n(colisão, furto,\nacidente c/ vítima)"]
 
-    MSG --> DETECT --> FNOL
-    FNOL --> F1 --> F2 --> F3 --> F4 --> F5 --> F6
-    F6 --> CLASSIFY
+    OPEN["open_claim_at_insurer\nabre chamado na seguradora\nvia API ou WhatsApp"]
 
-    CLASSIFY --> SIMPLE
-    CLASSIFY --> COMPLEX
-    CLASSIFY --> CRITICAL
+    ESCALATE["escalate_to_broker\nnotifica corretor com\nresumo estruturado"]
 
-    SIMPLE --> ASSIST
-    COMPLEX --> ADJUSTER
-    CRITICAL --> MANAGER
+    CLIENT_NOTIFY_GRAVE["relay_update_to_client\ninforma que corretor\nentrará em contato"]
 
-    ASSIST --> PROTO
-    ADJUSTER --> PROTO
-    MANAGER --> PROTO
+    HUMAN["👤 Corretor Humano\nconduz caso grave"]
 
-    PROTO --> DOCS --> UPLOAD --> STATUS
+    WAIT["Aguarda resposta\nda seguradora\n(estado em Redis)"]
 
-    style SIMPLE fill:#27AE60,color:#fff
-    style COMPLEX fill:#F39C12,color:#fff
-    style CRITICAL fill:#E74C3C,color:#fff
-    style MANAGER fill:#E74C3C,color:#fff
-    style PROTO fill:#4A90D9,color:#fff
+    UPDATE["relay_update_to_client\nrepassa atualização\nao cliente"]
+
+    RESOLVED{{"Caso encerrado?"}}
+
+    STORE["store_claim_history\nregistra histórico\ncompleto no PostgreSQL"]
+
+    END["✅ Sinistro encerrado"]
+
+    CLIENT --> ORCH --> COLLECT --> CLASSIFY --> SIMPLE
+
+    SIMPLE -->|"não"| GRAVE
+    GRAVE --> ESCALATE --> CLIENT_NOTIFY_GRAVE --> HUMAN
+    HUMAN -->|"atende o cliente diretamente"| END
+
+    SIMPLE -->|"sim"| OPEN --> WAIT --> UPDATE --> RESOLVED
+    RESOLVED -->|"não"| WAIT
+    RESOLVED -->|"sim"| STORE --> END
+
+    style CLIENT fill:#4A90D9,color:#fff
+    style ORCH fill:#4A90D9,color:#fff
+    style GRAVE fill:#E74C3C,color:#fff
+    style ESCALATE fill:#E74C3C,color:#fff
+    style HUMAN fill:#F39C12,color:#fff
+    style END fill:#2ECC71,color:#fff
+    style STORE fill:#27AE60,color:#fff
