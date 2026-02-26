@@ -50,6 +50,28 @@ services:
       redis:
         condition: service_healthy
 
+  # ---------------------------------------------------------------------------
+  # V1+ — Neo4j (Graph Memory)
+  # Descomentar ao iniciar desenvolvimento da V1 (mês 6).
+  # Usado pelo GraphMemoryService via Graphiti para o knowledge graph de clientes.
+  # ---------------------------------------------------------------------------
+  # neo4j:
+  #   image: neo4j:5-community
+  #   ports:
+  #     - "7474:7474"   # Neo4j Browser (UI)
+  #     - "7687:7687"   # Bolt protocol (driver)
+  #   environment:
+  #     NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-brokerai}
+  #     NEO4J_PLUGINS: '["apoc"]'
+  #   volumes:
+  #     - neo4j_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "neo4j", "status"]
+  #     interval: 10s
+  #     timeout: 10s
+  #     retries: 5
+
 volumes:
   postgres_data:
   redis_data:
+  # neo4j_data:  # Descomentar junto com o serviço neo4j acima (V1+)

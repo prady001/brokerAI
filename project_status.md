@@ -7,13 +7,17 @@
 
 ## Visão Geral dos Milestones
 
-| Milestone | Período | Status |
-|---|---|---|
-| M0 — Documentação e Planejamento | Fev/2026 | 🟡 Em andamento |
-| M1 — Fundação | Semanas 1–3 | ⬜ Não iniciado |
-| M2 — Agente de Comissionamento | Semanas 4–7 | ⬜ Não iniciado |
-| M3 — Agente de Sinistros | Semanas 6–10 | ⬜ Não iniciado |
-| MVP | Fim do mês 3 | ⬜ Não iniciado |
+| Versão | Período | Foco | Status |
+|---|---|---|---|
+| M0 — Documentação e Planejamento | Fev/2026 | Arquitetura, tese, casos de uso, roadmap | 🟡 Em andamento |
+| M1 — Fundação | Semanas 1–3 | Infra, WhatsApp, importação de carteira | ⬜ Não iniciado |
+| M2 — Comissionamento | Semanas 4–7 | Agente de comissionamento + NFS-e | ⬜ Não iniciado |
+| M3 — Sinistros | Semanas 6–10 | Agente de sinistros + escalada | ⬜ Não iniciado |
+| **MVP** | **Mês 3** | **Dois agentes em produção, primeira corretora pagante** | ⬜ Não iniciado |
+| **V1** | **Mês 6** | **Grafo de memória por cliente, relacionamento proativo** | ⬜ Não iniciado |
+| **V2** | **Mês 12** | **Inteligência de carteira, personalização emocional** | ⬜ Não iniciado |
+| **V3** | **Ano 2** | **Advocacia em sinistros, prevenção, precificação de risco** | ⬜ Não iniciado |
+| **V4** | **Ano 2-3** | **Plataforma com efeito de rede, prospecção autônoma** | ⬜ Não iniciado |
 
 ---
 
@@ -31,6 +35,10 @@
 - [x] Definição de variáveis de ambiente (`.env`)
 - [x] `CLAUDE.md` criado
 - [x] Guia de implementação criado (`docs/guias/guia-de-implementacao.md`)
+- [x] Análise de mercado e precificação (`docs/produto/`)
+- [x] Mapa completo de casos de uso (`docs/produto/casos-de-uso.md`)
+- [x] Tese da empresa (`docs/produto/tese-da-empresa.md`)
+- [x] Roadmap de versões MVP → V4 (`docs/produto/roadmap.md`)
 
 ### Em andamento 🔄
 

@@ -60,6 +60,24 @@ class Settings(BaseSettings):
     # Ambiente
     environment: str = "development"
 
+    # ---------------------------------------------------------------------------
+    # V1+ — Graph Memory (Graphiti + Neo4j)
+    # Não utilizadas no MVP. Ativadas a partir da V1 (mês 6).
+    # ---------------------------------------------------------------------------
+    graph_memory_enabled: bool = False
+
+    # Graphiti (Zep) — engine de knowledge graph temporal
+    graphiti_api_key: str = ""
+    graphiti_api_url: str = "http://localhost:8001"
+
+    # Neo4j — banco de grafo para persistência do knowledge graph
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = ""
+
+    # LangMem — SDK de memória do LangChain, integrado ao LangGraph
+    langmem_enabled: bool = False
+
     class Config:
         env_file = ".env"
         case_sensitive = False

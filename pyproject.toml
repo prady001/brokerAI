@@ -42,6 +42,19 @@ dev = [
     "mypy>=1.11.0",
 ]
 
+# V1+ — Graph Memory Layer (Graphiti + Neo4j + LangMem)
+# Instalar com: pip install brokerai[v1]
+v1 = [
+    # Graphiti — engine de knowledge graph temporal (Zep)
+    "graphiti-core>=0.3.0",
+    # Neo4j — driver oficial para banco de grafo
+    "neo4j>=5.0.0",
+    # LangMem — SDK de memória de longo prazo integrado ao LangGraph
+    "langmem>=0.0.1",
+    # LangChain Community — integrações de grafo
+    "langchain-community>=0.3.0",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

@@ -17,9 +17,9 @@ A corretora opera hoje com processos 100% manuais nos dois fluxos de maior custo
 
 ### 1.2 Solução
 
-Construir dois agentes de IA especializados — um para automação completa do ciclo de comissionamento e outro para intermediação de sinistros — operando de forma autônoma, com o humano acionado apenas em exceções.
+Construir uma plataforma de agentes de IA com **memória relacional acumulativa** projetada exclusivamente para corretoras de seguros. O BrokerAI começa automatizando os processos operacionais de maior custo (comissionamento e sinistros) e evolui — a cada versão — para uma inteligência de negócio completa: memória de longo prazo por cliente, inteligência de carteira, advocacia em sinistros e, eventualmente, efeito de rede entre corretoras.
 
-Os agentes assumem toda a operação repetitiva, deixando a equipe focada em relacionamento, negociação e casos que realmente exigem julgamento humano.
+A visão completa de produto está documentada em [`docs/produto/tese-da-empresa.md`](./produto/tese-da-empresa.md) e [`docs/produto/casos-de-uso.md`](./produto/casos-de-uso.md).
 
 ### 1.3 Objetivos Estratégicos
 
@@ -28,14 +28,17 @@ Os agentes assumem toda a operação repetitiva, deixando a equipe focada em rel
 | 1 | Eliminar trabalho operacional de comissionamento | Horas/dia gastas no processo antes vs. depois |
 | 2 | Reduzir tempo de resposta em sinistros | Tempo médio de retorno ao cliente |
 | 3 | Garantir que nenhuma comissão seja perdida | % de comissões capturadas vs. disponíveis nas seguradoras |
+| 4 | Construir grafo de conhecimento de cada cliente (V1+) | % da carteira com perfil longitudinal ativo |
+| 5 | Aumentar taxa de renovação via relacionamento proativo (V1+) | Taxa de renovação antes vs. depois |
+| 6 | Tornar-se plataforma com efeito de rede (V4) | Corretoras ativas + NRR |
 
 ### 1.4 Contexto e Restrições
 
 - **Estágio tecnológico atual:** processo 100% manual, sem automação prévia; sistema de gestão é o Agger
-- **Horizonte de entrega:** MVP em até 3 meses
+- **Horizonte de entrega MVP:** até 3 meses
 - **Canal primário:** WhatsApp (canal preferido do cliente brasileiro)
-- **Escopo do MVP:** Agente de Comissionamento (end-to-end autônomo) + Agente de Sinistros (relay assistido)
-- **Fora do escopo do MVP:** renovação de apólices, captação de novos clientes, integração bidirecional com Agger, app mobile, dashboard de gestão, emissão de apólices pelo agente
+- **Escopo do MVP:** Agente de Comissionamento (end-to-end autônomo) + Agente de Sinistros (relay assistido) + Onboarding básico
+- **Fora do escopo do MVP:** memória em grafo, renovação de apólices, captação de novos clientes, integração bidirecional com Agger, dashboard de gestão (→ V1+)
 
 ---
 
@@ -365,7 +368,11 @@ conversations
 
 ---
 
-## 3. Roadmap do MVP
+## 3. Roadmap de Versões
+
+O roadmap completo está documentado em [`docs/produto/roadmap.md`](./produto/roadmap.md). Abaixo o resumo executivo.
+
+### MVP — Mês 3: Automação Operacional
 
 | Milestone | Semanas | Entregável Principal |
 |---|---|---|
@@ -374,14 +381,41 @@ conversations
 | M3 — Agente de Sinistros | 6–10 | Agente intermediando sinistros simples (assistência, guincho) e escalando os graves para humano |
 | **MVP** | **Fim do mês 3** | **Dois agentes operando em produção + primeiras métricas reais coletadas** |
 
-### Pós-MVP (fase 2)
+### V1 — Mês 6: Memória Real do Cliente
 
-| Frente | Descrição |
+Substituição do Redis simples por grafo de conhecimento temporal (Graphiti/Zep). O agente passa a conhecer cada cliente de forma acumulativa.
+
+| Use Case | Entregável |
 |---|---|
-| Agente de Renovação | Régua de follow-up e envio de propostas de renovação via WhatsApp |
-| Agente de Novos Negócios | Captação por indicação e migração de outra corretora com OCR de apólice |
-| Integração Agger | Sincronização automática bidirecional da carteira |
-| Dashboard | Visão consolidada de comissões, sinistros e renovações para a corretora |
+| UC-01 Perfil longitudinal | Grafo por cliente: apólices, sinistros, eventos de vida, preferências |
+| UC-04 Relacionamento proativo | Agente inicia conversas no momento certo (renovação, pós-sinistro, aniversário) |
+| UC-06 Memória de negociação | Registro de argumentos, ofertas e recusas para personalizar renovações |
+| UC-14 Compliance SUSEP | Trilha de auditoria completa + retenção de 5 anos automatizada |
+
+### V2 — Mês 12: Inteligência de Carteira
+
+| Use Case | Entregável |
+|---|---|
+| UC-03 Score de relacionamento | Churn score e potencial de expansão contínuo por cliente |
+| UC-05 Perfil emocional | Agente adapta tom, tamanho e horário de mensagens por cliente |
+| UC-10 Inteligência de seguradoras | Ranking de performance real das seguradoras na carteira |
+| UC-02 Eventos de vida | Detecção automática de oportunidades de cross-sell |
+
+### V3 — Ano 2: Advocacia e Prevenção
+
+| Use Case | Entregável |
+|---|---|
+| UC-08 Advogado no sinistro | Detecta subpagamentos e gera documentação de recurso |
+| UC-12 Benchmarking | Compara carteira com benchmark agregado de mercado |
+| UC-09 Prevenção | Alertas preditivos de risco por cliente e região |
+| UC-19 Precificação | Otimização de preço de renovação por perfil de cliente |
+
+### V4 — Ano 2-3: Plataforma com Efeito de Rede
+
+| Use Case | Entregável |
+|---|---|
+| UC-16 Network effects | Grafo agregado entre corretoras → inteligência de mercado coletiva |
+| UC-17 Prospecção autônoma | Agente identifica e qualifica prospects similares à carteira atual |
 
 ---
 

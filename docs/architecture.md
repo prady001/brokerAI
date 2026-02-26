@@ -24,19 +24,24 @@
 
 ## 1. Visão Geral do Sistema
 
-O sistema é composto por **dois agentes de IA independentes** orquestrados via LangGraph:
+> **Escopo deste documento:** arquitetura do MVP. Para a visão de produto completa (V1–V4), ver `docs/produto/roadmap.md`.
+
+O sistema MVP é composto por **dois agentes de IA independentes** orquestrados via LangGraph:
 
 - **Agente de Comissionamento:** acionado por CRON diariamente às 08:00 BRT. Acessa portais de seguradoras (via API REST ou automação Playwright), extrai dados de comissão, emite NFS-e via Focus NFe API e envia resumo consolidado para a corretora via WhatsApp.
 
 - **Agente de Sinistros:** acionado por webhook WhatsApp. Recebe o cliente, coleta dados básicos do sinistro, abre o chamado na seguradora pelo canal adequado (API ou WhatsApp da seguradora) e faz o relay das atualizações até o encerramento. Sinistros graves são escalados imediatamente para humano.
 
+A partir da **V1**, uma terceira camada é adicionada: o **GraphMemoryService**, que constrói e consulta um grafo de conhecimento temporal por cliente usando Graphiti (Zep) + Neo4j. Ver seção 7 para a arquitetura de memória planejada.
+
 ### Princípios arquiteturais
 
-- **Stateful conversations:** estado de sinistros persistido em Redis durante o atendimento, migrado para PostgreSQL ao encerrar.
+- **Stateful conversations:** estado de conversas persistido em Redis durante o atendimento, migrado para PostgreSQL ao encerrar. Na V1, o estado de relacionamento de longo prazo migra para grafo (Graphiti).
 - **Human-in-the-loop by default:** sinistros graves e exceções no comissionamento sempre passam pelo corretor humano.
 - **Tools over free-form:** agentes executam ações via tools Pydantic tipadas — sem texto livre interpretado.
 - **Observabilidade total:** todas as chamadas LLM e ações de tools são rastreadas via LangSmith.
 - **Segurança de credenciais:** credenciais de portais de seguradoras armazenadas em arquivo JSON criptografado (AES-256), nunca em variáveis de ambiente diretas.
+- **Memory-first design (V1+):** toda nova entidade ou evento relevante ao cliente deve ser registrada no grafo de memória. O Redis é apenas para estado efêmero de sessão.
 
 ---
 
@@ -712,6 +717,95 @@ conversations
 **Decisão:** Usar Focus NFe como camada de abstração para NFS-e.
 
 **Motivo:** Focus NFe cobre mais de 1.400 municípios com uma única API REST + JSON. Elimina a necessidade de integrar com cada prefeitura separadamente. Custo por nota é baixo (R$ 0,10–0,30). Alternativas (NFE.io, PlugNotas) têm modelo similar — Focus foi escolhido por documentação mais completa.
+
+---
+
+---
+
+### ADR-008 — Graphiti como camada de memória de longo prazo (V1)
+
+**Contexto:** No MVP, o estado de conversa em Redis é efêmero (TTL 30 dias). A V1 requer memória acumulativa por cliente que persista indefinidamente e permita consultas relacionais semânticas.
+
+**Decisão:** Adotar Graphiti (Zep, open-source) como engine de knowledge graph temporal, integrado ao LangGraph via LangMem SDK.
+
+**Motivo:** Graphiti modela entidades e relações com timestamps — permite consultas como "qual foi o último sinistro desse cliente?" ou "o que foi prometido nessa negociação?" de forma nativa. Alternativas avaliadas: Mem0 (mais simples, menos controle), MemGPT (muito pesado para esse caso), implementação própria (alto custo de manutenção). Redis não suporta relações semânticas entre entidades.
+
+**Consequência:** Requer Neo4j ou FalkorDB como banco de grafo. Adiciona complexidade operacional na V1 — mitigada pelo uso de Docker Compose + Neo4j Community Edition.
+
+---
+
+### ADR-009 — Neo4j como banco de grafo para V1
+
+**Contexto:** Graphiti precisa de um backend de grafo para persistência.
+
+**Decisão:** Neo4j Community Edition no MVP de V1; avaliar FalkorDB (Redis-compatible graph) para produção em V2.
+
+**Motivo:** Neo4j tem a melhor integração com Graphiti e documentação mais completa. FalkorDB é mais leve e pode ser hospedado junto ao Redis existente — candidato natural para escalar. Decisão revisada no ADR-009-rev na V2.
+
+---
+
+## 7. Arquitetura de Memória (V1+)
+
+> Esta seção documenta a arquitetura planejada para V1. Não implementada no MVP.
+
+### 7.1 Estrutura do Grafo de Cliente
+
+```
+Cliente (nó central)
+  ├── [tem_apolice] → Apólice
+  │       ├── seguradora, tipo, prêmio, vencimento, status
+  │       └── [gerou_sinistro] → Sinistro
+  │               ├── tipo, severidade, status, datas
+  │               └── [resolvido_por] → Seguradora
+  ├── [teve_conversa] → Conversa
+  │       ├── tipo, canal, timestamp
+  │       └── [resultou_em] → Negociação | Sinistro | Renovação
+  ├── [tem_preferencia] → Preferência
+  │       └── canal, horário, tom, tamanho_mensagem
+  ├── [teve_evento_de_vida] → EventoDeVida
+  │       └── tipo, data_detecção, oportunidade_gerada
+  └── [tem_score] → ScoreRelacionamento
+          └── churn_risk, expansion_potential, nps_implícito
+```
+
+### 7.2 GraphMemoryService
+
+Novo serviço a ser criado em V1: `services/graph_memory_service.py`
+
+```python
+class GraphMemoryService:
+    # Adiciona entidade ou evento ao grafo do cliente
+    async def add_memory(client_id: UUID, memory: Memory) -> None
+
+    # Busca semântica no grafo do cliente
+    async def search(client_id: UUID, query: str) -> list[MemoryResult]
+
+    # Recupera o perfil completo do cliente como contexto para o LLM
+    async def get_client_context(client_id: UUID) -> ClientContext
+
+    # Calcula scores de relacionamento
+    async def compute_scores(client_id: UUID) -> RelationshipScores
+```
+
+### 7.3 Fluxo de Memória nos Agentes (V1)
+
+```
+Mensagem do cliente
+        │
+        ▼
+Agente Orquestrador
+        │
+        ├─→ GraphMemoryService.get_client_context()   ← carrega contexto do grafo
+        │         └── injeta no system prompt do agente
+        │
+        ▼
+Agente de Sinistros / Renovação
+        │
+        ├─→ processa e responde
+        │
+        └─→ GraphMemoryService.add_memory()           ← salva novo evento no grafo
+                  └── extrai entidades automaticamente via LLM
+```
 
 ---
 

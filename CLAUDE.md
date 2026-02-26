@@ -6,7 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **planning-stage project** — only architecture documentation exists. No implementation code has been written yet. The planned repository structure is defined in `architecture.md`.
 
+### Product Vision
+
+The BrokerAI is a **multi-version platform** for insurance brokers in Brazil. Full roadmap in `docs/produto/roadmap.md`:
+
+- **MVP (month 3):** Operational automation — commissioning agent + claims agent
+- **V1 (month 6):** Real memory — temporal knowledge graph per client (Graphiti/Zep)
+- **V2 (month 12):** Portfolio intelligence — churn scoring, emotional profiling, insurer benchmarking
+- **V3 (year 2):** Advocacy & prevention — claim advocacy, risk prevention, dynamic pricing
+- **V4 (year 2-3):** Network effects platform — collective graph across brokers, autonomous prospecting
+
+Key documents: `docs/produto/tese-da-empresa.md`, `docs/produto/casos-de-uso.md`, `docs/produto/roadmap.md`
+
 ## Planned Tech Stack
+
+### MVP Stack
 
 | Layer | Technology |
 |---|---|
@@ -23,6 +37,14 @@ This is a **planning-stage project** — only architecture documentation exists.
 | NFS-e Emission | Focus NFe API |
 | Email Fallback | SendGrid |
 | Observability | LangSmith + Sentry |
+
+### V1 Additions (Graph Memory)
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Long-term Memory SDK | LangMem (LangChain) | Native integration with LangGraph for persistent memory |
+| Temporal Knowledge Graph | Graphiti (Zep) | Client relationship graph with temporal edges |
+| Graph Database | Neo4j or FalkorDB | Persistent storage for the client knowledge graph |
 
 ## Planned Commands
 
@@ -54,6 +76,8 @@ docker compose exec api playwright install chromium
 
 ## System Architecture
 
+### MVP Architecture
+
 Two independent agents: one CRON-triggered (comissionamento) and one WhatsApp-triggered (sinistros):
 
 ```
@@ -79,7 +103,24 @@ WhatsApp webhook  ──►  FastAPI (POST /webhook/whatsapp)
               PostgreSQL  Redis  Z-API  WhatsApp seguradora
 ```
 
-**Conversation state** lives in Redis (TTL 30 days) while active, then migrates to PostgreSQL on close.
+**MVP conversation state** lives in Redis (TTL 30 days) while active, then migrates to PostgreSQL on close.
+
+### V1 Architecture Addition (Graph Memory)
+
+From V1, a temporal knowledge graph layer is added per client:
+
+```
+All agents  ──►  GraphMemoryService
+                      │
+                 Graphiti (Zep)       ← temporal knowledge graph
+                      │
+                 Neo4j / FalkorDB     ← persistent graph store
+                      │
+         Client nodes: apólices, sinistros, eventos de vida,
+         preferências, histórico de negociação, score de risco
+```
+
+The graph is the single source of truth for long-term client knowledge. Redis remains for active session state only.
 
 ## Language
 
@@ -99,6 +140,7 @@ All agents follow the same LangGraph pattern:
 - **Tools** are Pydantic-typed (`@tool` decorator) — never free-form text actions. Schema validation rejects malformed calls before any side effects.
 - **Human-in-the-loop** by default: no irreversible action executes without human approval. `emit_policy` tool is disabled in MVP.
 - **Prompts** instruct agents to never identify as AI unless directly asked, never negotiate pricing, and never promise values outside confirmed data.
+- **Memory-first (V1+):** from V1, every agent interaction must call `GraphMemoryService.add_memory()` after processing, and `GraphMemoryService.get_client_context()` before generating a response. Guard all graph calls with `settings.graph_memory_enabled` feature flag.
 
 ## Key Business Rules
 
@@ -135,6 +177,7 @@ agents/
 services/         commission_service.py, nfse_service.py, insurer_portal_service.py
                   claim_service.py, notification_service.py, scheduler_service.py
                   policy_service.py
+                  graph_memory_service.py  [V1+] — knowledge graph temporal por cliente
 api/              main.py, routes/webhook.py, routes/scheduler.py, middleware/auth.py
 models/           database.py (SQLAlchemy), schemas.py (Pydantic)
 migrations/       Alembic
