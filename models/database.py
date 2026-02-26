@@ -1,0 +1,148 @@
+"""
+Modelos SQLAlchemy e configuração do banco de dados.
+Engine assíncrona via asyncpg + SQLAlchemy 2.0.
+"""
+import uuid
+from datetime import datetime
+from sqlalchemy import (
+    Boolean, Column, Date, DateTime, Enum, ForeignKey,
+    Numeric, String, Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from models.config import settings
+
+
+# ---------------------------------------------------------------------------
+# Engine & Session
+# ---------------------------------------------------------------------------
+
+engine = create_async_engine(settings.database_url, echo=False)
+
+AsyncSessionLocal = sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
+)
+
+
+async def get_db():
+    """Dependency FastAPI para sessão de banco assíncrona."""
+    async with AsyncSessionLocal() as session:
+        yield session
+
+
+# ---------------------------------------------------------------------------
+# Base
+# ---------------------------------------------------------------------------
+
+class Base(DeclarativeBase):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Modelos
+# ---------------------------------------------------------------------------
+
+class Insurer(Base):
+    __tablename__ = "insurers"
+
+    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name             = Column(String, nullable=False)
+    code             = Column(String, unique=True, nullable=False)   # ex: bradesco, porto, hdi
+    portal_url       = Column(String)
+    integration_type = Column(Enum("api", "rpa", "email", name="integration_type"), nullable=False)
+    two_fa_method    = Column(Enum("totp", "email", "sms", "none", name="two_fa_method"), default="none")
+    active           = Column(Boolean, default=True)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Client(Base):
+    __tablename__ = "clients"
+
+    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    full_name       = Column(String, nullable=False)
+    cpf_cnpj        = Column(String, unique=True)   # tokenizado antes de entrar no LLM
+    phone_whatsapp  = Column(String)
+    email           = Column(String)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+    updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Policy(Base):
+    __tablename__ = "policies"
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id      = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    insurer_id     = Column(UUID(as_uuid=True), ForeignKey("insurers.id"), nullable=False)
+    policy_number  = Column(String, unique=True, nullable=False)
+    type           = Column(Enum("auto", "life", "home", "business", "health", name="policy_type"))
+    status         = Column(Enum("active", "expired", "cancelled", name="policy_status"), default="active")
+    premium_amount = Column(Numeric(12, 2))
+    start_date     = Column(Date)
+    end_date       = Column(Date)
+    imported_from  = Column(String)   # 'agger_csv' | 'manual'
+    created_at     = Column(DateTime, default=datetime.utcnow)
+    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Claim(Base):
+    __tablename__ = "claims"
+
+    id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    policy_id           = Column(UUID(as_uuid=True), ForeignKey("policies.id"))
+    client_id           = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    insurer_id          = Column(UUID(as_uuid=True), ForeignKey("insurers.id"))
+    type                = Column(Enum("assistance", "glass", "collision", "theft", "fire", "other", name="claim_type"))
+    severity            = Column(Enum("simple", "grave", name="claim_severity"))
+    status              = Column(
+        Enum("open", "in_progress", "waiting_insurer", "escalated", "closed", name="claim_status"),
+        default="open",
+    )
+    insurer_thread_id   = Column(String)
+    insurer_channel     = Column(String)   # api | portal_chat | portal_notes | whatsapp
+    occurrence_date     = Column(DateTime)
+    occurrence_location = Column(JSONB)
+    description         = Column(Text)
+    documents           = Column(JSONB)    # lista de URLs S3
+    opened_at           = Column(DateTime, default=datetime.utcnow)
+    closed_at           = Column(DateTime)
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id      = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    claim_id       = Column(UUID(as_uuid=True), ForeignKey("claims.id"))
+    type           = Column(Enum("claim", "faq", "support", name="conversation_type"))
+    status         = Column(
+        Enum("active", "waiting_client", "waiting_insurer", "escalated", "closed", name="conversation_status"),
+        default="active",
+    )
+    messages       = Column(JSONB, default=list)   # histórico completo — retido 5 anos (SUSEP)
+    started_at     = Column(DateTime, default=datetime.utcnow)
+    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    closed_at      = Column(DateTime)
+
+
+class Commission(Base):
+    __tablename__ = "commissions"
+
+    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    insurer_id       = Column(UUID(as_uuid=True), ForeignKey("insurers.id"), nullable=False)
+    policy_id        = Column(UUID(as_uuid=True), ForeignKey("policies.id"))
+    client_id        = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
+    reference_month  = Column(String)        # competência YYYY-MM
+    gross_amount     = Column(Numeric(12, 2))
+    net_amount       = Column(Numeric(12, 2))
+    commission_rate  = Column(Numeric(5, 4))
+    nfse_number      = Column(String)
+    nfse_pdf_url     = Column(String)
+    status           = Column(
+        Enum("pending", "nfse_emitted", "nfse_failed", name="commission_status"),
+        default="pending",
+    )
+    extracted_at     = Column(DateTime)
+    nfse_emitted_at  = Column(DateTime)
+    created_at       = Column(DateTime, default=datetime.utcnow)

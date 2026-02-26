@@ -5,17 +5,26 @@ da seguradora (integration_type: 'api' | 'rpa').
 """
 from agents.commissioning.portal_adapters.api_adapter import ApiAdapter
 from agents.commissioning.portal_adapters.rpa_adapter import RpaAdapter
+from agents.commissioning.portal_adapters.email_adapter import EmailAdapter
 from agents.commissioning.portal_adapters.base import InsurerAdapter
 
 
 def get_adapter(insurer: dict, credentials: dict) -> InsurerAdapter:
     """
-    Retorna o adapter correto para a seguradora.
+    Retorna o adapter correto para a seguradora conforme integration_type:
+      api   → ApiAdapter (REST OAuth)
+      rpa   → RpaAdapter (Playwright headless)
+      email → EmailAdapter (IMAP — extratos enviados por e-mail)
+
     insurer: { id, code, integration_type, two_fa_method, ... }
     """
-    if insurer["integration_type"] == "api":
-        return ApiAdapter(insurer["id"], credentials)
-    return RpaAdapter(insurer["id"], credentials)
+    match insurer["integration_type"]:
+        case "api":
+            return ApiAdapter(insurer["id"], credentials)
+        case "email":
+            return EmailAdapter(insurer["id"], credentials)
+        case _:
+            return RpaAdapter(insurer["id"], credentials)
 
 
 async def load_insurer_credentials(insurer_id: str) -> dict:

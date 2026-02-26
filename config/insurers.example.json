@@ -1,0 +1,39 @@
+{
+  "_comment": "Este é o formato do arquivo config/insurers.json.enc (antes da criptografia).",
+  "_comment2": "O arquivo real deve ser criptografado com AES-256 usando a chave INSURER_CREDENTIALS_KEY.",
+  "insurers": [
+    {
+      "id": "uuid-da-seguradora",
+      "code": "bradesco",
+      "integration_type": "api",
+      "two_fa_method": "none",
+      "credentials": {
+        "client_id": "BRADESCO_CLIENT_ID",
+        "client_secret": "BRADESCO_CLIENT_SECRET",
+        "token_url": "https://api.bradescoseguros.com.br/oauth/token"
+      }
+    },
+    {
+      "id": "uuid-da-seguradora-2",
+      "code": "porto",
+      "integration_type": "rpa",
+      "two_fa_method": "totp",
+      "credentials": {
+        "username": "corretor@corretora.com.br",
+        "password": "SENHA_PORTAL_PORTO",
+        "totp_secret": "BASE32_TOTP_SECRET"
+      }
+    },
+    {
+      "id": "uuid-da-seguradora-3",
+      "code": "hdi",
+      "integration_type": "email",
+      "two_fa_method": "none",
+      "credentials": {
+        "sender_filter": "comissoes@hdi.com.br",
+        "subject_filter": "Extrato de Comissão",
+        "attachment_types": ["pdf", "xlsx"]
+      }
+    }
+  ]
+}

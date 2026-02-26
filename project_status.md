@@ -25,20 +25,30 @@
 
 ### Concluído ✅
 
-- [x] Especificação de produto (`project_spec.md`)
-- [x] Arquitetura técnica (`architecture.md`)
-- [x] Diagramas de fluxo (renovação, sinistros, visão geral, grafo de agentes)
+- [x] Especificação de produto (`docs/project_spec.md`)
+- [x] Arquitetura técnica (`docs/architecture.md`)
+- [x] Diagramas de fluxo (sinistros, comissionamento, visão geral, grafo de agentes)
 - [x] Levantamento de requisitos com a corretora
 - [x] Definição da stack tecnológica
-- [x] ADRs documentados (ADR-001 a ADR-005)
-- [x] Modelo de dados definido
-- [x] Definição de variáveis de ambiente (`.env`)
-- [x] `CLAUDE.md` criado
-- [x] Guia de implementação criado (`docs/guias/guia-de-implementacao.md`)
+- [x] ADRs documentados (ADR-001 a ADR-009)
+- [x] Modelo de dados definido e implementado (`models/database.py`)
+- [x] Schemas Pydantic de API (`models/schemas.py`)
+- [x] Definição de variáveis de ambiente (`.env`, `.env.example`)
+- [x] `CLAUDE.md` criado e atualizado
+- [x] Guia de implementação (`docs/guias/guia-de-implementacao.md`)
+- [x] Ralph Loop prompts (`docs/guias/ralph-loop-prompt.md`, `ralph-loop-prompt-m1.md`)
 - [x] Análise de mercado e precificação (`docs/produto/`)
 - [x] Mapa completo de casos de uso (`docs/produto/casos-de-uso.md`)
 - [x] Tese da empresa (`docs/produto/tese-da-empresa.md`)
 - [x] Roadmap de versões MVP → V4 (`docs/produto/roadmap.md`)
+- [x] Pré-requisitos de implementação + perguntas para cliente (`docs/produto/pre-requisitos-implementacao.md`)
+- [x] Design completo dos grafos LangGraph (claims, commissioning, orchestrator) com gaps corrigidos
+- [x] `CommissioningState`, `ClaimsState`, `OrchestratorState` — schemas de estado completos
+- [x] Portal adapters: `ApiAdapter`, `RpaAdapter`, `EmailAdapter` (IMAP)
+- [x] Configuração do Alembic (`alembic.ini`, `migrations/env.py`)
+- [x] `tests/conftest.py` com fixtures de banco e API client
+- [x] Template de credenciais de seguradoras (`config/insurers.example.json`)
+- [x] Estrutura de repositório organizada e completa
 
 ### Em andamento 🔄
 

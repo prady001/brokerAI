@@ -40,6 +40,8 @@ dev = [
     "httpx>=0.27.0",
     "ruff>=0.6.0",
     "mypy>=1.11.0",
+    # SQLite async para testes em memória (sem necessidade de PostgreSQL)
+    "aiosqlite>=0.20.0",
 ]
 
 # V1+ — Graph Memory Layer (Graphiti + Neo4j + LangMem)

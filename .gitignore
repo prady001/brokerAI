@@ -19,6 +19,7 @@ htmlcov/
 # IDE
 .vscode/
 .idea/
+.cursor/
 
 # Docker
 postgres_data/
@@ -27,3 +28,13 @@ redis_data/
 # OS
 .DS_Store
 Thumbs.db
+
+# Arquivos de cliente / documentos internos
+respostas-cliente.jpeg
+
+# Claude Code installer (não faz parte do projeto)
+install.sh
+
+# Prompts de workflow na raiz (movidos para docs/guias/)
+ralph_prompt.md
+ralph_prompt_m1.md
