@@ -28,6 +28,18 @@ def emit_nfse_node(state: CommissioningState) -> CommissioningState:
     raise NotImplementedError
 
 
+def alert_failures_node(state: CommissioningState) -> CommissioningState:
+    """
+    Para cada seguradora em insurers_failed:
+    1. Chama alert_missing_commission com o motivo do erro
+    2. Notifica o corretor via WhatsApp sobre a falha de acesso
+
+    Não bloqueia o fluxo — seguradoras com falha são registradas em errors
+    e o relatório consolidado é enviado mesmo assim.
+    """
+    raise NotImplementedError
+
+
 def send_summary_node(state: CommissioningState) -> CommissioningState:
     """Envia resumo diário para a corretora via WhatsApp."""
     raise NotImplementedError

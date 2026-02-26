@@ -12,6 +12,11 @@ class CommissioningState(TypedDict):
     insurers_done: list[str]
     insurers_failed: list[str]
     commissions: list[dict]
+
+    # Formato e arquivos brutos por seguradora
+    commission_format: str          # "pdf" | "spreadsheet" | "email" | "api"
+    raw_files: list[str]            # URLs S3 dos PDFs/planilhas baixados antes do parse
+
     nfse_emitted: list[dict]
     nfse_failed: list[dict]
     report_sent: bool
