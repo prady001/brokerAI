@@ -1,13 +1,11 @@
 """
-NotificationService — Envio de mensagens via WhatsApp (Z-API) e e-mail (SendGrid).
+NotificationService — Envio de mensagens via WhatsApp (Evolution API) e e-mail (SendGrid).
 """
-import httpx
-from models.config import settings
 
 
 async def send_whatsapp_message(phone: str, message: str) -> bool:
     """
-    Envia mensagem de texto via Z-API para um número WhatsApp.
+    Envia mensagem de texto via Evolution API para um número WhatsApp.
     phone: número no formato 5511999999999 (DDI + DDD + número).
     """
     raise NotImplementedError

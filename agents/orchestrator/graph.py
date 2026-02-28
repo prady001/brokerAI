@@ -7,14 +7,16 @@ Fluxo:
 3. Se não há conversa ativa → detecta intenção → roteia para claims / faq / humano
 """
 from typing import TypedDict
-from langgraph.graph import StateGraph, END
+
+from langgraph.graph import END, StateGraph
+
+from agents.claims.graph import build_claims_graph
 from agents.orchestrator.nodes import (
-    load_conversation_node,
     detect_intent_node,
     faq_handler_node,
     human_handoff_node,
+    load_conversation_node,
 )
-from agents.claims.graph import build_claims_graph
 
 
 class OrchestratorState(TypedDict):

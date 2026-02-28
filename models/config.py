@@ -1,10 +1,12 @@
 """
 Configurações do projeto carregadas via pydantic-settings.
 """
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+
     # LLM
     anthropic_api_key: str
 
@@ -26,6 +28,9 @@ class Settings(BaseSettings):
     cloudflare_r2_secret_access_key: str = ""
     cloudflare_r2_bucket: str = "brokerai-documents"
     cloudflare_r2_endpoint: str = ""
+
+    # Token interno para rotas admin/scheduler
+    internal_api_token: str = ""
 
     # Notificações
     broker_notification_phone: str
@@ -57,9 +62,5 @@ class Settings(BaseSettings):
     neo4j_password: str = ""
     langmem_enabled: bool = False
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
 
-
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]

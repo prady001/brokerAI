@@ -3,6 +3,7 @@ Adapter de e-mail para seguradoras que enviam extratos de comissão por e-mail.
 Acessa caixa IMAP da corretora, filtra e-mails da seguradora e extrai anexos.
 """
 import imaplib
+
 from agents.commissioning.portal_adapters.base import InsurerAdapter
 
 

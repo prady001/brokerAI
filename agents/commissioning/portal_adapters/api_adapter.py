@@ -2,7 +2,6 @@
 Adapter para seguradoras com API REST (ex: Bradesco Seguros).
 Usa httpx para chamadas autenticadas via OAuth.
 """
-import httpx
 from agents.commissioning.portal_adapters.base import InsurerAdapter
 
 

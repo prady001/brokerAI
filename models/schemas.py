@@ -1,54 +1,12 @@
 """
 Schemas Pydantic para validação de request/response da API.
 """
-from datetime import datetime
-from typing import Any
-from pydantic import BaseModel
+import uuid
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from typing import Literal
 
-
-# ---------------------------------------------------------------------------
-# Webhook — Z-API (WhatsApp)
-# ---------------------------------------------------------------------------
-
-class ZApiMessage(BaseModel):
-    """Mensagem recebida via webhook do Z-API."""
-    phone: str
-    body: str
-    messageId: str
-    fromMe: bool = False
-    momment: int | None = None       # timestamp Unix (Z-API usa esse nome)
-    type: str = "text"               # text | image | audio | document | ...
-    caption: str | None = None       # legenda de mídia
-    mimetype: str | None = None
-    mediaUrl: str | None = None
-
-
-class ZApiWebhookPayload(BaseModel):
-    """Payload completo do webhook Z-API."""
-    instanceId: str
-    messageId: str
-    phone: str
-    fromMe: bool
-    momment: int
-    status: str
-    chatName: str | None = None
-    senderName: str | None = None
-    senderPhoto: str | None = None
-    text: ZApiMessage | None = None
-    image: ZApiMessage | None = None
-    audio: ZApiMessage | None = None
-    document: ZApiMessage | None = None
-
-
-# ---------------------------------------------------------------------------
-# Scheduler
-# ---------------------------------------------------------------------------
-
-class CommissionCheckResponse(BaseModel):
-    status: str
-    message: str
-    run_date: str = ""
-
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Health
@@ -56,4 +14,66 @@ class CommissionCheckResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    timestamp: datetime = datetime.utcnow()
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+# ---------------------------------------------------------------------------
+# Admin — Clientes
+# ---------------------------------------------------------------------------
+
+class ClientCreate(BaseModel):
+    full_name: str
+    cpf_cnpj: str | None = None
+    phone_whatsapp: str | None = None
+    email: str | None = None
+    birth_date: date | None = None
+
+
+class ClientResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    full_name: str
+    cpf_cnpj: str | None
+    phone_whatsapp: str | None
+    email: str | None
+    birth_date: date | None
+    created_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Admin — Apólices
+# ---------------------------------------------------------------------------
+
+class PolicyCreate(BaseModel):
+    client_id: uuid.UUID
+    insurer_id: uuid.UUID
+    policy_number: str
+    type: Literal["auto", "life", "home", "travel", "business"] | None = None
+    item_description: str | None = None
+    premium_amount: Decimal | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    seller_phone: str | None = None
+
+
+class PolicyPatch(BaseModel):
+    status: Literal["active", "expired", "cancelled"] | None = None
+    seller_phone: str | None = None
+
+
+class PolicyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    client_id: uuid.UUID
+    insurer_id: uuid.UUID
+    policy_number: str
+    type: str | None
+    item_description: str | None
+    status: str
+    premium_amount: Decimal | None
+    start_date: date | None
+    end_date: date | None
+    seller_phone: str | None
+    created_at: datetime
