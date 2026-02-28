@@ -10,7 +10,7 @@
 | Versão | Período | Foco | Status |
 |---|---|---|---|
 | M0 — Documentação e Planejamento | Fev/2026 | Arquitetura, tese, casos de uso, roadmap | 🟡 Em andamento |
-| M1 — Fundação | Semanas 1–3 | Infra, Evolution API (WhatsApp), cadastro de carteira | ⬜ Não iniciado |
+| M1 — Fundação | Semanas 1–3 | Infra, Evolution API (WhatsApp), cadastro de carteira | ✅ Concluído (código) |
 | M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | ⬜ Não iniciado |
 | M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | ⬜ Não iniciado |
 | M4 — Agente de Renovação | Semanas 7–10 | Régua de renovação proativa + qualificação de lead para vendedor | ⬜ Não iniciado |
@@ -78,6 +78,7 @@
 - [x] Pipeline de CI (GitHub Actions) — ruff + mypy + pytest
 - [x] Cadastro manual de carteira de apólices (CRUD `/admin/clients` e `/admin/policies`)
 - [x] `.env.example` atualizado com todas as variáveis do escopo atual
+- [x] Documentação da fundação (`docs/api/m1-fundacao.md`)
 - [ ] Evolution API conectada a número WhatsApp real (aguardando chip dedicado)
 
 ---
