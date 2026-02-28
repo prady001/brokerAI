@@ -69,14 +69,16 @@
 
 ### Entregas esperadas
 
-- [ ] Repositório estruturado com pastas definidas em `architecture.md`
-- [ ] Docker Compose funcionando (API + PostgreSQL + Redis)
-- [ ] Migrations iniciais com Alembic (`clients`, `policies`, `claims`, `conversations`, `renewals`)
-- [ ] FastAPI com rotas de webhook (`/webhook/whatsapp`, `/scheduler/renewal-check`)
-- [ ] Evolution API configurada: receber e enviar mensagem simples via WhatsApp
-- [ ] Pipeline de CI (GitHub Actions) com lint e testes
-- [ ] Cadastro manual de carteira de apólices (CRUD básico via admin ou script)
-- [ ] `.env.example` atualizado com todas as variáveis do escopo atual
+- [x] Repositório estruturado com pastas definidas em `architecture.md`
+- [x] Docker Compose funcionando (API + PostgreSQL + Redis + Evolution API)
+- [x] Migrations iniciais com Alembic (`clients`, `policies`, `claims`, `conversations`, `renewals`)
+- [x] FastAPI com rotas de webhook (`/webhook/whatsapp`, `/scheduler/renewal-check`)
+- [x] Webhook handler Evolution API implementado com filtragem de eventos
+- [x] Middleware de autenticação (Evolution API + token interno)
+- [x] Pipeline de CI (GitHub Actions) — ruff + mypy + pytest
+- [x] Cadastro manual de carteira de apólices (CRUD `/admin/clients` e `/admin/policies`)
+- [x] `.env.example` atualizado com todas as variáveis do escopo atual
+- [ ] Evolution API conectada a número WhatsApp real (aguardando chip dedicado)
 
 ---
 
