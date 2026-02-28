@@ -4,11 +4,12 @@ on:
   push:
     branches:
       - main
-      - "feat/**"
+      - "feat/*"
   pull_request:
     branches:
       - main
-      - "feat/**"
+      - "feat/*"
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -38,7 +39,7 @@ jobs:
     env:
       ANTHROPIC_API_KEY: sk-ant-test-placeholder
       EVOLUTION_API_KEY: test-key
-      DATABASE_URL: sqlite+aiosqlite:///:memory:
+      DATABASE_URL: "sqlite+aiosqlite:///:memory:"
       REDIS_URL: redis://localhost:6379/0
       BROKER_NOTIFICATION_PHONE: "5517999999999"
       BROKER_NOTIFICATION_EMAIL: test@test.com
