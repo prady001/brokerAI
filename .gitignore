@@ -29,8 +29,10 @@ redis_data/
 .DS_Store
 Thumbs.db
 
-# Arquivos de cliente / documentos internos
+# Arquivos de cliente / documentos internos (confidenciais)
 respostas-cliente.jpeg
+docs/relatorio_de_renovacoes.pdf
+*.pdf
 
 # Claude Code installer (não faz parte do projeto)
 install.sh

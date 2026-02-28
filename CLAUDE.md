@@ -29,9 +29,9 @@ Key documents: `docs/produto/tese-da-empresa.md`, `docs/produto/casos-de-uso.md`
 | Backend | Python + FastAPI (port 8000) |
 | Database | PostgreSQL 16 |
 | Cache / Conversation State | Redis 7 |
-| Document Storage | AWS S3 |
+| Document Storage | Cloudflare R2 |
 | OCR | Mistral OCR or AWS Textract |
-| WhatsApp | Z-API (webhooks) |
+| WhatsApp | Evolution API (self-hosted, open source) |
 | Portal Automation (RPA) | Playwright (headless browser) |
 | 2FA Automation | pyotp (TOTP) + SMS gateway / IMAP |
 | NFS-e Emission | Focus NFe API |

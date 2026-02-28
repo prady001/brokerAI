@@ -10,10 +10,11 @@
 | Versão | Período | Foco | Status |
 |---|---|---|---|
 | M0 — Documentação e Planejamento | Fev/2026 | Arquitetura, tese, casos de uso, roadmap | 🟡 Em andamento |
-| M1 — Fundação | Semanas 1–3 | Infra, WhatsApp, importação de carteira | ⬜ Não iniciado |
-| M2 — Comissionamento | Semanas 4–7 | Agente de comissionamento + NFS-e | ⬜ Não iniciado |
-| M3 — Sinistros | Semanas 6–10 | Agente de sinistros + escalada | ⬜ Não iniciado |
-| **MVP** | **Mês 3** | **Dois agentes em produção, primeira corretora pagante** | ⬜ Não iniciado |
+| M1 — Fundação | Semanas 1–3 | Infra, Evolution API (WhatsApp), cadastro de carteira | ⬜ Não iniciado |
+| M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | ⬜ Não iniciado |
+| M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | ⬜ Não iniciado |
+| M4 — Agente de Renovação | Semanas 7–10 | Régua de renovação proativa + qualificação de lead para vendedor | ⬜ Não iniciado |
+| **MVP** | **Mês 3** | **Três agentes em produção, primeira corretora pagante** | ⬜ Não iniciado |
 | **V1** | **Mês 6** | **Grafo de memória por cliente, relacionamento proativo** | ⬜ Não iniciado |
 | **V2** | **Mês 12** | **Inteligência de carteira, personalização emocional** | ⬜ Não iniciado |
 | **V3** | **Ano 2** | **Advocacia em sinistros, prevenção, precificação de risco** | ⬜ Não iniciado |
@@ -25,6 +26,7 @@
 
 ### Concluído ✅
 
+- [x] Plataforma do Gestor — especificação completa de telas e navegação (`docs/produto/plataforma-gestor.md`)
 - [x] Especificação de produto (`docs/project_spec.md`)
 - [x] Arquitetura técnica (`docs/architecture.md`)
 - [x] Diagramas de fluxo (sinistros, comissionamento, visão geral, grafo de agentes)
@@ -53,18 +55,13 @@
 ### Em andamento 🔄
 
 - [ ] Validação do levantamento com stakeholders da corretora (questionário enviado)
-- [ ] Mapeamento das seguradoras que a corretora opera
-- [ ] Verificação de tipo de 2FA por portal de seguradora
 - [ ] Definição dos templates de mensagem WhatsApp (aprovação Meta)
-- [ ] Contratação / setup de conta Z-API
 
 ### Pendente ⬜
 
-- [ ] Aprovação formal do escopo do MVP
-- [ ] Exportação de carteira via Agger (CSV com campos de apólice)
-- [ ] Credenciais de acesso aos portais das seguradoras
-- [ ] Definição do município do CNPJ (para configurar Focus NFe)
-- [ ] Definição do ambiente de staging (Railway ou AWS)
+- [ ] Aprovação formal do escopo do MVP (3 agentes: sinistro, onboarding, renovação)
+- [x] Documentação do agente de sinistro simples E2E (`docs/agentes/sinistro.md`)
+- [x] Documentação do agente de onboarding (`docs/agentes/onboarding.md`)
 
 ---
 
@@ -74,73 +71,106 @@
 
 - [ ] Repositório estruturado com pastas definidas em `architecture.md`
 - [ ] Docker Compose funcionando (API + PostgreSQL + Redis)
-- [ ] Migrations iniciais com Alembic (`clients`, `policies`, `claims`, `conversations`, `commissions`)
-- [ ] FastAPI com rotas de webhook (`/webhook/whatsapp`, `/scheduler/commission-check`)
-- [ ] Integração Z-API: receber e enviar mensagem simples via WhatsApp
+- [ ] Migrations iniciais com Alembic (`clients`, `policies`, `claims`, `conversations`, `renewals`)
+- [ ] FastAPI com rotas de webhook (`/webhook/whatsapp`, `/scheduler/renewal-check`)
+- [ ] Evolution API configurada: receber e enviar mensagem simples via WhatsApp
 - [ ] Pipeline de CI (GitHub Actions) com lint e testes
-- [ ] `.env.example` atualizado com todas as variáveis do novo escopo
-- [ ] Playwright instalado e validado no container
-- [ ] Importação inicial da carteira via CSV exportado do Agger
+- [ ] Cadastro manual de carteira de apólices (CRUD básico via admin ou script)
+- [ ] `.env.example` atualizado com todas as variáveis do escopo atual
 
 ---
 
-## M2 — Agente de Comissionamento (Semanas 4–7)
-
-### Entregas esperadas
-
-- [ ] `InsurerPortalService` com adapters por seguradora (API e RPA)
-- [ ] `CommissionService` com CRUD de comissões
-- [ ] `NfseService` integrado com Focus NFe API
-- [ ] Resolução automática de 2FA (TOTP, e-mail, SMS)
-- [ ] Subgraph LangGraph do Agente de Comissionamento
-- [ ] Tools implementadas: `fetch_commission_data`, `handle_2fa`, `consolidate_report`, `emit_nfse`, `send_daily_summary`, `alert_missing_commission`
-- [ ] CRON scheduler diário (08:00 BRT)
-- [ ] Testes unitários das tools, adapters e nós do grafo
-- [ ] Teste de ponta a ponta com pelo menos 2 seguradoras reais
-
----
-
-## M3 — Agente de Sinistros (Semanas 6–10)
+## M2 — Agente de Sinistro Simples E2E (Semanas 3–6)
 
 ### Entregas esperadas
 
 - [ ] `ClaimService` com CRUD de sinistros
-- [ ] Subgraph LangGraph do Agente de Sinistros (relay pattern)
+- [ ] Subgraph LangGraph do Agente de Sinistros
 - [ ] Tools implementadas: `classify_claim`, `collect_claim_info`, `open_claim_at_insurer`, `relay_update_to_client`, `escalate_to_broker`, `store_claim_history`
 - [ ] Orquestrador configurado para rotear WhatsApp → Agente de Sinistros
-- [ ] Upload de fotos via WhatsApp → S3
+- [ ] Upload de fotos via WhatsApp → Cloudflare R2
 - [ ] Escalada automática para sinistros graves com resumo estruturado
-- [ ] Testes dos tipos mais comuns (guincho, assistência, vidro, colisão)
+- [ ] Testes dos tipos mais comuns: guincho, assistência, vidro (sinistros simples)
+- [ ] Documentação: `docs/agentes/sinistro.md`
+
+---
+
+## M3 — Agente de Onboarding (Semanas 5–8)
+
+### Entregas esperadas
+
+- [ ] Subgraph LangGraph do Agente de Onboarding
+- [ ] Fluxo de coleta de dados do novo cliente via WhatsApp (nome, CPF, veículo, contato)
+- [ ] Cadastro automático de `client` + `policy` no banco a partir da conversa
+- [ ] Tools implementadas: `collect_client_data`, `validate_document`, `register_client`, `register_policy`, `send_welcome_summary`
+- [ ] Orquestrador configurado para rotear WhatsApp → Agente de Onboarding
+- [ ] Notificação ao vendedor ao finalizar cadastro com resumo estruturado
+- [ ] Testes do fluxo completo (carro, moto, residência)
+- [ ] Documentação: `docs/agentes/onboarding.md`
+
+---
+
+## M4 — Agente de Renovação (Semanas 7–10)
+
+### Entregas esperadas
+
+- [ ] `RenewalService` com CRUD e lógica de régua de contatos
+- [ ] Subgraph LangGraph do Agente de Renovação
+- [ ] CRON scheduler diário (08:00 BRT) — busca apólices com vencimento em 30, 15, 7, 0 dias
+- [ ] Tools implementadas: `get_expiring_policies`, `send_renewal_contact`, `register_client_intent`, `notify_seller`, `mark_renewal_status`
+- [ ] Três templates WhatsApp aprovados pela Meta (aviso, lembrete, urgência)
+- [ ] Lógica de status: `CONFIRMADO`, `RECUSADO`, `SEM_RESPOSTA`, `PERDIDO`
+- [ ] Notificação estruturada ao vendedor com contexto completo da apólice
+- [ ] Testes da régua completa (30→15→7→0 dias)
+- [ ] Documentação: `docs/agentes/renovacao.md` ✅
 
 ---
 
 ## Integrações — Status
 
-| Integração | Responsável | Status |
-|---|---|---|
-| WhatsApp Business API (Z-API) | — | ⬜ Conta não criada |
-| PostgreSQL (local/Docker) | — | ⬜ Não configurado |
-| Redis (local/Docker) | — | ⬜ Não configurado |
-| AWS S3 | — | ⬜ Credenciais pendentes |
-| Focus NFe API | — | ⬜ Conta não criada |
-| Portais das seguradoras (mapeamento) | — | ⬜ Aguardando lista da corretora |
-| Playwright (RPA) | — | ⬜ A instalar no container |
-| Gateway SMS (2FA) | — | ⬜ A definir provedor |
-| SendGrid | — | ⬜ Conta não criada |
-| LangSmith | — | ⬜ Projeto não criado |
-| Sentry | — | ⬜ Projeto não criado |
-| Carteira de apólices (CSV do Agger) | — | ⬜ Exportação pendente com a corretora |
+| Integração | Responsável | Status | Escopo |
+|---|---|---|---|
+| WhatsApp (Evolution API — self-hosted) | — | ⬜ A configurar | MVP |
+| PostgreSQL (Oracle Cloud Free Tier) | — | ⬜ A configurar | MVP |
+| Redis (Oracle Cloud Free Tier) | — | ⬜ A configurar | MVP |
+| Cloudflare R2 (fotos de sinistros) | — | ⬜ Conta não criada | MVP |
+| LangSmith | — | ⬜ Projeto não criado | MVP |
+| Sentry | — | ⬜ Projeto não criado | MVP |
+| Portais das seguradoras (RPA/API) | — | ⬜ Pós-MVP | V1 |
+| Focus NFe API (NFS-e) | — | ⬜ Pós-MVP | V1 |
+| Playwright (RPA portais) | — | ⬜ Pós-MVP | V1 |
+| Gateway SMS (2FA portais) | — | ⬜ Pós-MVP | V1 |
 
 ---
 
-## Decisões Abertas
+## Decisões
+
+### Tomadas ✅
+
+| # | Decisão | Escolha | Observação |
+|---|---|---|---|
+| D-01 | Provedor WhatsApp | **Evolution API** (self-hosted, open source) | Gratuito. Mesma tecnologia do Z-API. Migrar para API oficial quando escalar. |
+| D-02 | Ambiente de deploy | **Oracle Cloud Free Tier** | Permanentemente gratuito. 2 VMs + PostgreSQL Autonomous + Object Storage. |
+| D-03 | Importação de apólices | **Digitação manual** | CSV do Agger pode ser avaliado em V1. |
+| D-08 | Storage de arquivos (fotos de sinistros) | **Cloudflare R2** | 10GB gratuitos/mês, sem custo de egress. Substitui AWS S3 no MVP. |
+
+| D-04 | Seguradoras MVP: Porto Seguro, Allianz, Azul Seguros, Tokio Marine | **Decidido** — ver tabela abaixo |
+
+#### Mapa de portais — D-04
+
+| Seguradora | API REST? | Estratégia MVP | 2FA | Ação necessária |
+|---|---|---|---|---|
+| Porto Seguro | ✅ OAuth 2.0 (Sensedia) | API | ReCaptcha no portal (inviabiliza RPA) | Cadastrar parceiro em `dev.portoseguro.com.br` |
+| Allianz | ❌ Não | RPA (Playwright) | Sem 2FA confirmado (SAML legado) | Nenhuma — implementar em M2 |
+| Azul Seguros | ❌ Não | RPA (Playwright) | Sem 2FA (senha dupla no extrato) | Nenhuma — implementar em M2 |
+| Tokio Marine | ✅ OAuth 2.0 (Sensedia) | API | Token 2FA confirmado (tipo a verificar) | Cadastrar parceiro em `integracao.tokiomarine.com.br` |
+
+**Ordem de implementação:** Allianz e Azul (M2 início) → Porto Seguro e Tokio Marine (M2 fim, após aprovação de parceiro).
+
+### Abertas ⬜
 
 | # | Decisão | Prazo |
 |---|---|---|
-| D-01 | Confirmar provedor WhatsApp: Z-API vs. Twilio | Antes de M1 |
-| D-02 | Definir ambiente de deploy do MVP: Railway vs. AWS | Antes de M1 |
-| D-03 | Formato de importação das apólices: CSV do Agger ou digitação manual | Antes de M1 |
-| D-04 | Mapear seguradoras e tipo de acesso por portal (API vs. RPA vs. 2FA) | Antes de M2 |
 | D-05 | Confirmar município do CNPJ da corretora (para configurar Focus NFe) | Antes de M2 |
 | D-06 | Templates de mensagem WhatsApp aprovados pela Meta | Antes de M2 |
 | D-07 | Provedor de gateway SMS para 2FA (Twilio, Zenvia, ou outro) | Antes de M2 |
