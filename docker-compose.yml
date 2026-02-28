@@ -1,4 +1,8 @@
 services:
+
+  # ---------------------------------------------------------------------------
+  # API principal — FastAPI + LangGraph
+  # ---------------------------------------------------------------------------
   api:
     build: .
     ports:
@@ -12,6 +16,10 @@ services:
     volumes:
       - .:/app
 
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16
+  # Dois bancos criados: insurance_agents (API) e evolution (Evolution API).
+  # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16
     environment:
@@ -22,12 +30,18 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Redis 7
+  # DB 0: estado de conversas (API)
+  # DB 1: cache da Evolution API
+  # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     ports:
@@ -40,6 +54,81 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Evolution API — WhatsApp (open source, substitui Z-API)
+  # UI de administração: http://localhost:8080/manager
+  # Conectar número: POST /instance/create + GET /instance/connect/{name}
+  # ---------------------------------------------------------------------------
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      # Servidor
+      SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8080}
+      # Autenticação
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+      # Banco de dados (banco separado 'evolution' no mesmo postgres)
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_api
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      DATABASE_SAVE_DATA_HISTORIC: "true"
+      # Redis (DB 1 para não conflitar com a API)
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/1
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      CACHE_LOCAL_ENABLED: "false"
+      # Webhook → FastAPI (comunicação interna entre containers)
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_URL: http://api:8000/webhook/whatsapp
+      WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
+      # Eventos habilitados (apenas os necessários para o MVP)
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"      # mensagem recebida
+      WEBHOOK_EVENTS_MESSAGES_UPDATE: "true"      # status de entrega
+      WEBHOOK_EVENTS_CONNECTION_UPDATE: "true"    # status da conexão
+      WEBHOOK_EVENTS_QRCODE_UPDATED: "true"       # QR code para scan
+      # Desabilitar eventos desnecessários
+      WEBHOOK_EVENTS_APPLICATION_STARTUP: "false"
+      WEBHOOK_EVENTS_MESSAGES_DELETE: "false"
+      WEBHOOK_EVENTS_SEND_MESSAGE: "false"
+      WEBHOOK_EVENTS_CONTACTS_UPSERT: "false"
+      WEBHOOK_EVENTS_CONTACTS_UPDATE: "false"
+      WEBHOOK_EVENTS_PRESENCE_UPDATE: "false"
+      WEBHOOK_EVENTS_CHATS_SET: "false"
+      WEBHOOK_EVENTS_CHATS_UPSERT: "false"
+      WEBHOOK_EVENTS_CHATS_UPDATE: "false"
+      WEBHOOK_EVENTS_CHATS_DELETE: "false"
+      WEBHOOK_EVENTS_GROUPS_UPSERT: "false"
+      WEBHOOK_EVENTS_GROUPS_UPDATE: "false"
+      WEBHOOK_EVENTS_GROUP_PARTICIPANTS_UPDATE: "false"
+      WEBHOOK_EVENTS_CALL: "false"
+      # Configurações gerais
+      DEL_INSTANCE: "false"
+      LANGUAGE: pt-BR
+      LOG_LEVEL: ERROR
+      LOG_COLOR: "true"
+      LOG_BAILEYS: error
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - evolution_instances:/evolution/instances
+
+  # ---------------------------------------------------------------------------
+  # Scheduler — CRON de renovações (08:00 BRT)
+  # ---------------------------------------------------------------------------
   scheduler:
     build: .
     command: python -m services.scheduler_service
@@ -53,13 +142,12 @@ services:
   # ---------------------------------------------------------------------------
   # V1+ — Neo4j (Graph Memory)
   # Descomentar ao iniciar desenvolvimento da V1 (mês 6).
-  # Usado pelo GraphMemoryService via Graphiti para o knowledge graph de clientes.
   # ---------------------------------------------------------------------------
   # neo4j:
   #   image: neo4j:5-community
   #   ports:
-  #     - "7474:7474"   # Neo4j Browser (UI)
-  #     - "7687:7687"   # Bolt protocol (driver)
+  #     - "7474:7474"
+  #     - "7687:7687"
   #   environment:
   #     NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-brokerai}
   #     NEO4J_PLUGINS: '["apoc"]'
@@ -74,4 +162,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  # neo4j_data:  # Descomentar junto com o serviço neo4j acima (V1+)
+  evolution_instances:
+  # neo4j_data:  # Descomentar junto com o serviço neo4j (V1+)
