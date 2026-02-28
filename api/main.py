@@ -3,7 +3,7 @@ FastAPI app principal do brokerAI.
 """
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from api.routes import webhook, scheduler
+from api.routes import webhook, scheduler, admin
 from services.scheduler_service import create_scheduler
 
 
@@ -26,6 +26,7 @@ app = FastAPI(
 
 app.include_router(webhook.router)
 app.include_router(scheduler.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")
