@@ -3,6 +3,7 @@ Tools e State Schema do Agente de Comissionamento.
 Todas as tools são Pydantic-tipadas — sem free-form function calling.
 """
 from typing import TypedDict
+
 from langchain_core.tools import tool
 
 

@@ -8,15 +8,16 @@ Padrão relay com loop de acompanhamento:
 O nó check_updates é re-acionado periodicamente (CRON ou webhook do WhatsApp)
 enquanto o sinistro estiver aberto. O estado persiste em Redis entre acionamentos.
 """
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
+
 from agents.claims.nodes import (
-    collect_info_node,
-    classify_node,
-    open_claim_node,
     check_updates_node,
-    relay_to_client_node,
-    escalate_node,
+    classify_node,
     close_node,
+    collect_info_node,
+    escalate_node,
+    open_claim_node,
+    relay_to_client_node,
 )
 from agents.claims.tools import ClaimsState
 

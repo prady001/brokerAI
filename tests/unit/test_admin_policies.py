@@ -2,12 +2,12 @@
 Testes unitários das rotas admin de clientes e apólices.
 """
 import uuid
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.database import Insurer
-
 
 # ---------------------------------------------------------------------------
 # Fixtures auxiliares
@@ -17,17 +17,17 @@ from models.database import Insurer
 def client_payload() -> dict:
     return {
         "full_name": "Maria Aparecida Silva",
-        "cpf_cnpj": "123.456.789-00",
+        "cpf_cnpj": f"cpf-{uuid.uuid4().hex[:8]}",
         "phone_whatsapp": "5517991234567",
         "email": "maria@example.com",
     }
 
 
 async def _create_insurer(db: AsyncSession) -> Insurer:
-    """Cria uma seguradora de teste no banco."""
+    """Cria uma seguradora de teste no banco com código único."""
     insurer = Insurer(
         name="Porto Seguro",
-        code="porto",
+        code=f"porto-{uuid.uuid4().hex[:8]}",
         integration_type="api",
     )
     db.add(insurer)
@@ -90,7 +90,8 @@ async def test_list_policies(
     """GET /admin/policies deve retornar 200 com lista de apólices."""
     insurer = await _create_insurer(db_session)
 
-    client_resp = await api_client.post("/admin/clients", json={**client_payload, "cpf_cnpj": "987.654.321-00"})
+    payload = {**client_payload, "cpf_cnpj": "987.654.321-00"}
+    client_resp = await api_client.post("/admin/clients", json=payload)
     client_id = client_resp.json()["id"]
 
     await api_client.post("/admin/policies", json={

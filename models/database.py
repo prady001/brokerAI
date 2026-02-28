@@ -4,15 +4,25 @@ Engine assíncrona via asyncpg + SQLAlchemy 2.0.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Enum, ForeignKey,
-    Integer, Numeric, String, Text,
-)
-from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
-from models.config import settings
 
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Uuid,
+)
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+
+from models.config import settings
 
 # ---------------------------------------------------------------------------
 # Engine & Session
@@ -20,9 +30,7 @@ from models.config import settings
 
 engine = create_async_engine(settings.database_url, echo=False)
 
-AsyncSessionLocal = sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
+AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def get_db():
@@ -46,12 +54,14 @@ class Base(DeclarativeBase):
 class Insurer(Base):
     __tablename__ = "insurers"
 
-    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id               = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name             = Column(String, nullable=False)
     code             = Column(String, unique=True, nullable=False)   # ex: allianz, porto, tokio
     portal_url       = Column(String)
     integration_type = Column(Enum("api", "rpa", "manual", name="integration_type"), nullable=False)
-    two_fa_method    = Column(Enum("totp", "email", "sms", "none", name="two_fa_method"), default="none")
+    two_fa_method    = Column(
+        Enum("totp", "email", "sms", "none", name="two_fa_method"), default="none"
+    )
     active           = Column(Boolean, default=True)
     created_at       = Column(DateTime, default=datetime.utcnow)
     updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -60,7 +70,7 @@ class Insurer(Base):
 class Client(Base):
     __tablename__ = "clients"
 
-    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id             = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     full_name      = Column(String, nullable=False)
     cpf_cnpj       = Column(String, unique=True)   # tokenizado antes de entrar no LLM
     phone_whatsapp = Column(String)
@@ -73,13 +83,17 @@ class Client(Base):
 class Policy(Base):
     __tablename__ = "policies"
 
-    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    client_id        = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
-    insurer_id       = Column(UUID(as_uuid=True), ForeignKey("insurers.id"), nullable=False)
+    id               = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id        = Column(Uuid(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    insurer_id       = Column(Uuid(as_uuid=True), ForeignKey("insurers.id"), nullable=False)
     policy_number    = Column(String, unique=True, nullable=False)
-    type             = Column(Enum("auto", "life", "home", "travel", "business", name="policy_type"))
+    type             = Column(
+        Enum("auto", "life", "home", "travel", "business", name="policy_type")
+    )
     item_description = Column(String)       # ex: "Toyota Yaris 1.3 Flex / ABC1234"
-    status           = Column(Enum("active", "expired", "cancelled", name="policy_status"), default="active")
+    status           = Column(
+        Enum("active", "expired", "cancelled", name="policy_status"), default="active"
+    )
     premium_amount   = Column(Numeric(12, 2))
     start_date       = Column(Date)
     end_date         = Column(Date)
@@ -92,11 +106,13 @@ class Policy(Base):
 class Claim(Base):
     __tablename__ = "claims"
 
-    id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    policy_id           = Column(UUID(as_uuid=True), ForeignKey("policies.id"))
-    client_id           = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
-    insurer_id          = Column(UUID(as_uuid=True), ForeignKey("insurers.id"))
-    type                = Column(Enum("assistance", "glass", "collision", "theft", "fire", "other", name="claim_type"))
+    id                  = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    policy_id           = Column(Uuid(as_uuid=True), ForeignKey("policies.id"))
+    client_id           = Column(Uuid(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    insurer_id          = Column(Uuid(as_uuid=True), ForeignKey("insurers.id"))
+    type                = Column(
+        Enum("assistance", "glass", "collision", "theft", "fire", "other", name="claim_type")
+    )
     severity            = Column(Enum("simple", "grave", name="claim_severity"))
     status              = Column(
         Enum("open", "in_progress", "waiting_insurer", "escalated", "closed", name="claim_status"),
@@ -105,9 +121,9 @@ class Claim(Base):
     insurer_thread_id   = Column(String)
     insurer_channel     = Column(String)    # api | whatsapp_relay | manual
     occurrence_date     = Column(DateTime)
-    occurrence_location = Column(JSONB)
+    occurrence_location = Column(JSON)
     description         = Column(Text)
-    documents           = Column(JSONB)     # lista de URLs Cloudflare R2
+    documents           = Column(JSON)     # lista de URLs Cloudflare R2
     opened_at           = Column(DateTime, default=datetime.utcnow)
     closed_at           = Column(DateTime)
 
@@ -115,13 +131,16 @@ class Claim(Base):
 class Renewal(Base):
     __tablename__ = "renewals"
 
-    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    policy_id       = Column(UUID(as_uuid=True), ForeignKey("policies.id"), nullable=False)
-    client_id       = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    id              = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    policy_id       = Column(Uuid(as_uuid=True), ForeignKey("policies.id"), nullable=False)
+    client_id       = Column(Uuid(as_uuid=True), ForeignKey("clients.id"), nullable=False)
     seller_phone    = Column(String)        # vendedor a notificar
     expiry_date     = Column(Date, nullable=False)   # cópia de policy.end_date para queries rápidas
     status          = Column(
-        Enum("pending", "contacted", "confirmed", "refused", "no_response", "lost", name="renewal_status"),
+        Enum(
+            "pending", "contacted", "confirmed", "refused", "no_response", "lost",
+            name="renewal_status",
+        ),
         default="pending",
         nullable=False,
     )
@@ -137,16 +156,21 @@ class Renewal(Base):
 class Conversation(Base):
     __tablename__ = "conversations"
 
-    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    client_id  = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
-    claim_id   = Column(UUID(as_uuid=True), ForeignKey("claims.id"))
-    renewal_id = Column(UUID(as_uuid=True), ForeignKey("renewals.id"))
-    type       = Column(Enum("claim", "onboarding", "renewal", "faq", "support", name="conversation_type"))
+    id         = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id  = Column(Uuid(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    claim_id   = Column(Uuid(as_uuid=True), ForeignKey("claims.id"))
+    renewal_id = Column(Uuid(as_uuid=True), ForeignKey("renewals.id"))
+    type       = Column(
+        Enum("claim", "onboarding", "renewal", "faq", "support", name="conversation_type")
+    )
     status     = Column(
-        Enum("active", "waiting_client", "waiting_insurer", "escalated", "closed", name="conversation_status"),
+        Enum(
+            "active", "waiting_client", "waiting_insurer", "escalated", "closed",
+            name="conversation_status",
+        ),
         default="active",
     )
-    messages   = Column(JSONB, default=list)    # histórico completo — retido 5 anos (SUSEP)
+    messages   = Column(JSON, default=list)    # histórico completo — retido 5 anos (SUSEP)
     started_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     closed_at  = Column(DateTime)
@@ -156,10 +180,10 @@ class Commission(Base):
     """Comissões extraídas dos portais. Utilizado a partir da V1 (agente de comissionamento)."""
     __tablename__ = "commissions"
 
-    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    insurer_id      = Column(UUID(as_uuid=True), ForeignKey("insurers.id"), nullable=False)
-    policy_id       = Column(UUID(as_uuid=True), ForeignKey("policies.id"))
-    client_id       = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
+    id              = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    insurer_id      = Column(Uuid(as_uuid=True), ForeignKey("insurers.id"), nullable=False)
+    policy_id       = Column(Uuid(as_uuid=True), ForeignKey("policies.id"))
+    client_id       = Column(Uuid(as_uuid=True), ForeignKey("clients.id"))
     reference_month = Column(String)        # competência YYYY-MM
     gross_amount    = Column(Numeric(12, 2))
     net_amount      = Column(Numeric(12, 2))

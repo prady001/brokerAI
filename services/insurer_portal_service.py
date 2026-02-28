@@ -4,9 +4,9 @@ Seleciona automaticamente ApiAdapter ou RpaAdapter com base na configuração
 da seguradora (integration_type: 'api' | 'rpa').
 """
 from agents.commissioning.portal_adapters.api_adapter import ApiAdapter
-from agents.commissioning.portal_adapters.rpa_adapter import RpaAdapter
-from agents.commissioning.portal_adapters.email_adapter import EmailAdapter
 from agents.commissioning.portal_adapters.base import InsurerAdapter
+from agents.commissioning.portal_adapters.email_adapter import EmailAdapter
+from agents.commissioning.portal_adapters.rpa_adapter import RpaAdapter
 
 
 def get_adapter(insurer: dict, credentials: dict) -> InsurerAdapter:

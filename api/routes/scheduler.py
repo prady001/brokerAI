@@ -3,6 +3,7 @@ Rota de acionamento manual do scheduler.
 Permite disparar a verificação de renovações fora do horário do CRON (ex: testes).
 """
 from fastapi import APIRouter, Depends
+
 from api.middleware.auth import verify_internal_token
 from services.scheduler_service import run_renewal_check
 

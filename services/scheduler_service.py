@@ -3,8 +3,10 @@ SchedulerService — CRON jobs via APScheduler.
 Dispara a verificação de renovações diariamente às 08:00 BRT.
 """
 import logging
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+
 from models.config import settings
 
 logger = logging.getLogger(__name__)

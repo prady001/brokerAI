@@ -3,7 +3,9 @@ Middleware de autenticação.
 Valida assinaturas de webhook (Evolution API) e tokens internos (scheduler, admin).
 """
 import logging
-from fastapi import HTTPException, Header
+
+from fastapi import Header, HTTPException
+
 from models.config import settings
 
 logger = logging.getLogger(__name__)

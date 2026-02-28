@@ -9,13 +9,14 @@ Ciclo diário (08:00 BRT):
 5. Alerta sobre seguradoras com falha de acesso
 6. Envia resumo consolidado via WhatsApp para a corretora
 """
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
+
 from agents.commissioning.nodes import (
-    load_insurers_node,
-    fetch_commission_node,
+    alert_failures_node,
     consolidate_node,
     emit_nfse_node,
-    alert_failures_node,
+    fetch_commission_node,
+    load_insurers_node,
     send_summary_node,
 )
 from agents.commissioning.tools import CommissioningState

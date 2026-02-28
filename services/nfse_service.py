@@ -2,8 +2,6 @@
 NfseService — Emissão de NFS-e via Focus NFe API.
 Abstrai a comunicação com o serviço de nota fiscal eletrônica.
 """
-import httpx
-from models.config import settings
 
 
 async def emit_nfse(commission: dict) -> dict:

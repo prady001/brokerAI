@@ -2,8 +2,10 @@
 FastAPI app principal do brokerAI.
 """
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from api.routes import webhook, scheduler, admin
+
+from api.routes import admin, scheduler, webhook
 from services.scheduler_service import create_scheduler
 
 

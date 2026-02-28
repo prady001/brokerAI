@@ -2,8 +2,9 @@
 Rotas de administração — cadastro manual de clientes e apólices.
 Protegidas por token interno. Usadas pelo corretor para importar carteira no MVP.
 """
-import uuid
 import logging
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.middleware.auth import verify_internal_token
 from models.database import Client, Policy, get_db
 from models.schemas import (
-    ClientCreate, ClientResponse,
-    PolicyCreate, PolicyPatch, PolicyResponse,
+    ClientCreate,
+    ClientResponse,
+    PolicyCreate,
+    PolicyPatch,
+    PolicyResponse,
 )
 
 logger = logging.getLogger(__name__)

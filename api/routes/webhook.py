@@ -3,8 +3,10 @@ Rota de webhook WhatsApp.
 Recebe eventos do Evolution API e encaminha para o Agente Orquestrador (M2+).
 """
 import logging
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+
 from api.middleware.auth import verify_evolution_webhook
 
 logger = logging.getLogger(__name__)

@@ -1,8 +1,6 @@
 """
 NotificationService — Envio de mensagens via WhatsApp (Z-API) e e-mail (SendGrid).
 """
-import httpx
-from models.config import settings
 
 
 async def send_whatsapp_message(phone: str, message: str) -> bool:

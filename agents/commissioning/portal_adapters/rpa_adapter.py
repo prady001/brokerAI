@@ -2,7 +2,6 @@
 Adapter RPA para seguradoras sem API REST.
 Usa Playwright em modo headless para navegar o portal e extrair comissões.
 """
-from playwright.async_api import async_playwright
 from agents.commissioning.portal_adapters.base import InsurerAdapter
 
 

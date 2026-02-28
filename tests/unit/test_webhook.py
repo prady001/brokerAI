@@ -1,16 +1,16 @@
 """
 Testes unitários do webhook handler do Evolution API.
 """
+from typing import Any
+
 import pytest
 from httpx import AsyncClient
-from models.config import settings
-from api.middleware.auth import verify_evolution_webhook
-from api.main import app
 
+from models.config import settings
 
 VALID_HEADERS = {"apikey": settings.evolution_api_key}
 
-VALID_PAYLOAD = {
+VALID_PAYLOAD: dict[str, Any] = {
     "event": "messages.upsert",
     "instance": "brokerai",
     "data": {
@@ -30,7 +30,8 @@ VALID_PAYLOAD = {
 @pytest.mark.asyncio
 async def test_webhook_ignores_own_messages(api_client: AsyncClient):
     """Mensagens enviadas por nós (fromMe=true) devem ser ignoradas."""
-    payload = {**VALID_PAYLOAD, "data": {**VALID_PAYLOAD["data"], "key": {**VALID_PAYLOAD["data"]["key"], "fromMe": True}}}
+    key = {**VALID_PAYLOAD["data"]["key"], "fromMe": True}
+    payload = {**VALID_PAYLOAD, "data": {**VALID_PAYLOAD["data"], "key": key}}
     response = await api_client.post("/webhook/whatsapp", json=payload, headers=VALID_HEADERS)
     assert response.status_code == 200
     assert response.json() == {"status": "ignored"}
