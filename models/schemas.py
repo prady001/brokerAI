@@ -2,11 +2,11 @@
 Schemas Pydantic para validação de request/response da API.
 """
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Health
@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 class HealthResponse(BaseModel):
     status: str
-    timestamp: datetime = datetime.utcnow()
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 # ---------------------------------------------------------------------------
@@ -30,6 +30,8 @@ class ClientCreate(BaseModel):
 
 
 class ClientResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     full_name: str
     cpf_cnpj: str | None
@@ -37,9 +39,6 @@ class ClientResponse(BaseModel):
     email: str | None
     birth_date: date | None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +63,8 @@ class PolicyPatch(BaseModel):
 
 
 class PolicyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     client_id: uuid.UUID
     insurer_id: uuid.UUID
@@ -76,6 +77,3 @@ class PolicyResponse(BaseModel):
     end_date: date | None
     seller_phone: str | None
     created_at: datetime
-
-    class Config:
-        from_attributes = True

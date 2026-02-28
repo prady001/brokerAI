@@ -1,10 +1,12 @@
 """
 Configurações do projeto carregadas via pydantic-settings.
 """
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+
     # LLM
     anthropic_api_key: str
 
@@ -59,11 +61,6 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
     langmem_enabled: bool = False
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        extra = "ignore"
 
 
 settings = Settings()  # type: ignore[call-arg]

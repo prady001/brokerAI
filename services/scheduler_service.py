@@ -36,3 +36,22 @@ async def run_renewal_check() -> None:
     Implementação completa no M4 (Agente de Renovação).
     """
     logger.info("Verificação de renovações iniciada")
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    logging.basicConfig(level=logging.INFO)
+
+    async def _main() -> None:
+        sched = create_scheduler()
+        sched.start()
+        logger.info("Scheduler iniciado. Pressione Ctrl+C para encerrar.")
+        try:
+            while True:
+                await asyncio.sleep(60)
+        except (KeyboardInterrupt, SystemExit):
+            sched.shutdown()
+            logger.info("Scheduler encerrado.")
+
+    asyncio.run(_main())

@@ -5,7 +5,7 @@ Protegidas por token interno. Usadas pelo corretor para importar carteira no MVP
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,8 +40,8 @@ async def create_client(body: ClientCreate, db: AsyncSession = Depends(get_db)) 
 
 @router.get("/clients", response_model=list[ClientResponse])
 async def list_clients(
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ) -> list[Client]:
     """Lista clientes cadastrados com paginação."""
@@ -77,8 +77,8 @@ async def create_policy(body: PolicyCreate, db: AsyncSession = Depends(get_db)) 
 async def list_policies(
     client_id: uuid.UUID | None = None,
     status: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ) -> list[Policy]:
     """Lista apólices com filtros opcionais por cliente e status."""

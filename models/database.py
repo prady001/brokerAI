@@ -3,7 +3,7 @@ Modelos SQLAlchemy e configuração do banco de dados.
 Engine assíncrona via asyncpg + SQLAlchemy 2.0.
 """
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
@@ -23,6 +23,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from models.config import settings
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
 
 # ---------------------------------------------------------------------------
 # Engine & Session
@@ -63,8 +68,8 @@ class Insurer(Base):
         Enum("totp", "email", "sms", "none", name="two_fa_method"), default="none"
     )
     active           = Column(Boolean, default=True)
-    created_at       = Column(DateTime, default=datetime.utcnow)
-    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at       = Column(DateTime, default=_now)
+    updated_at       = Column(DateTime, default=_now, onupdate=_now)
 
 
 class Client(Base):
@@ -76,8 +81,8 @@ class Client(Base):
     phone_whatsapp = Column(String)
     email          = Column(String)
     birth_date     = Column(Date)
-    created_at     = Column(DateTime, default=datetime.utcnow)
-    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at     = Column(DateTime, default=_now)
+    updated_at     = Column(DateTime, default=_now, onupdate=_now)
 
 
 class Policy(Base):
@@ -99,8 +104,8 @@ class Policy(Base):
     end_date         = Column(Date)
     seller_phone     = Column(String)       # vendedor responsável (WhatsApp)
     imported_from    = Column(String)       # 'manual' | 'agger_csv' (V1)
-    created_at       = Column(DateTime, default=datetime.utcnow)
-    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at       = Column(DateTime, default=_now)
+    updated_at       = Column(DateTime, default=_now, onupdate=_now)
 
 
 class Claim(Base):
@@ -124,7 +129,7 @@ class Claim(Base):
     occurrence_location = Column(JSON)
     description         = Column(Text)
     documents           = Column(JSON)     # lista de URLs Cloudflare R2
-    opened_at           = Column(DateTime, default=datetime.utcnow)
+    opened_at           = Column(DateTime, default=_now)
     closed_at           = Column(DateTime)
 
 
@@ -149,8 +154,8 @@ class Renewal(Base):
     next_contact_at = Column(DateTime)
     client_intent   = Column(String)        # wants_renewal | refused | wants_quote
     intent_notes    = Column(Text)          # motivo livre (ex: "tá muito caro")
-    created_at      = Column(DateTime, default=datetime.utcnow)
-    updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at      = Column(DateTime, default=_now)
+    updated_at      = Column(DateTime, default=_now, onupdate=_now)
 
 
 class Conversation(Base):
@@ -171,8 +176,8 @@ class Conversation(Base):
         default="active",
     )
     messages   = Column(JSON, default=list)    # histórico completo — retido 5 anos (SUSEP)
-    started_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    started_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
     closed_at  = Column(DateTime)
 
 
@@ -196,4 +201,4 @@ class Commission(Base):
     )
     extracted_at    = Column(DateTime)
     nfse_emitted_at = Column(DateTime)
-    created_at      = Column(DateTime, default=datetime.utcnow)
+    created_at      = Column(DateTime, default=_now)
