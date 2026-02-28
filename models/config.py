@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     cloudflare_r2_bucket: str = "brokerai-documents"
     cloudflare_r2_endpoint: str = ""
 
+    # Token interno para rotas admin/scheduler
+    internal_api_token: str = ""
+
     # Notificações
     broker_notification_phone: str
     broker_notification_email: str
