@@ -3,9 +3,9 @@ Schemas Pydantic para validação de request/response da API.
 """
 import uuid
 from datetime import date, datetime, timezone
+from decimal import Decimal
 
 UTC = timezone.utc
-from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -78,4 +78,25 @@ class PolicyResponse(BaseModel):
     start_date: date | None
     end_date: date | None
     seller_phone: str | None
+    created_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Renovações
+# ---------------------------------------------------------------------------
+
+class RenewalResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    policy_id: uuid.UUID
+    client_id: uuid.UUID
+    seller_phone: str | None
+    expiry_date: date
+    status: str
+    contact_count: int
+    last_contact_at: datetime | None
+    next_contact_at: datetime | None
+    client_intent: str | None
+    intent_notes: str | None
     created_at: datetime
