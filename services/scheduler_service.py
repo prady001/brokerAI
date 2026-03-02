@@ -33,9 +33,32 @@ async def run_renewal_check() -> None:
     """
     Executa a verificação de apólices próximas do vencimento.
     Acionado pelo CRON e também disponível via POST /scheduler/renewal-check.
-    Implementação completa no M4 (Agente de Renovação).
     """
+    from agents.renewal.graph import renewal_graph
+    from agents.renewal.nodes import inject_node_dependencies
+    from models.database import AsyncSessionLocal
+    from services.renewal_service import RenewalService
+
     logger.info("Verificação de renovações iniciada")
+
+    async with AsyncSessionLocal() as db:
+        renewal_service = RenewalService(db)
+        inject_node_dependencies(renewal_service, llm=None)
+
+        result = await renewal_graph.ainvoke({
+            "mode": "cron",
+            "policies_to_contact": [],
+            "contacts_sent": [],
+            "errors": [],
+        })
+
+    contacts_sent = len(result.get("contacts_sent", []))
+    errors = result.get("errors", [])
+
+    if errors:
+        logger.warning("Verificação de renovações concluída com erros: %s", errors)
+    else:
+        logger.info("Verificação de renovações concluída: %d contatos enviados", contacts_sent)
 
 
 if __name__ == "__main__":
