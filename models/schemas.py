@@ -2,7 +2,9 @@
 Schemas Pydantic para validação de request/response da API.
 """
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
+
+UTC = timezone.utc
 from decimal import Decimal
 from typing import Literal
 

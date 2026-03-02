@@ -3,7 +3,9 @@ Modelos SQLAlchemy e configuração do banco de dados.
 Engine assíncrona via asyncpg + SQLAlchemy 2.0.
 """
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+UTC = timezone.utc
 
 from sqlalchemy import (
     JSON,
