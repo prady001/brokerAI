@@ -10,7 +10,6 @@ import pytest
 from agents.renewal import tools as renewal_tools
 from services.renewal_service import RenewalCandidate
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

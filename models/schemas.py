@@ -4,11 +4,11 @@ Schemas Pydantic para validação de request/response da API.
 import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
-
-UTC = timezone.utc
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+UTC = timezone.utc
 
 # ---------------------------------------------------------------------------
 # Health

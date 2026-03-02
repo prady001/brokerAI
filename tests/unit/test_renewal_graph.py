@@ -12,7 +12,6 @@ import agents.renewal.nodes as nodes_module
 from agents.renewal.graph import build_renewal_graph
 from services.renewal_service import RenewalCandidate
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

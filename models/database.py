@@ -5,8 +5,6 @@ Engine assíncrona via asyncpg + SQLAlchemy 2.0.
 import uuid
 from datetime import datetime, timezone
 
-UTC = timezone.utc
-
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -25,6 +23,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from models.config import settings
+
+UTC = timezone.utc
 
 
 def _now() -> datetime:

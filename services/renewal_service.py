@@ -5,8 +5,6 @@ Gerencia a régua de contatos, criação de registros de renovação e atualiza�
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
-
-UTC = timezone.utc
 from typing import Literal
 from uuid import UUID
 
@@ -14,6 +12,8 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.database import Client, Policy, Renewal
+
+UTC = timezone.utc
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ Nós do grafo LangGraph do Agente de Renovação.
 Cada nó é uma função assíncrona que recebe e retorna um RenewalState.
 """
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from agents.renewal.prompts import (
     RENEWAL_SYSTEM_PROMPT,
@@ -105,8 +105,9 @@ async def send_contacts(state: dict) -> dict:
     Envia mensagens WhatsApp para cada apólice elegível.
     Modo: cron
     """
-    import services.notification_service as ns
     from uuid import UUID
+
+    import services.notification_service as ns
 
     contacts_sent = []
     errors = list(state.get("errors", []))

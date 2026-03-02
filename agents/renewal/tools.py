@@ -145,7 +145,9 @@ async def notify_seller(
     import services.notification_service as ns
 
     success = await ns.send_whatsapp_message(seller_phone, summary_message)
-    logger.info("Vendedor notificado: renewal_id=%s seller=%s success=%s", renewal_id, seller_phone, success)
+    logger.info(
+        "Vendedor notificado: renewal_id=%s seller=%s success=%s", renewal_id, seller_phone, success
+    )
     return {
         "success": success,
         "renewal_id": renewal_id,

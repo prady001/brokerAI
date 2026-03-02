@@ -6,9 +6,9 @@ Dois fluxos no mesmo grafo:
   - mode=whatsapp:  process_client_response → notify_sellers → update_statuses
 """
 from typing import Literal
-from typing_extensions import TypedDict
 
 from langgraph.graph import END, StateGraph
+from typing_extensions import TypedDict
 
 from agents.renewal.nodes import (
     check_expiring_policies,
@@ -17,7 +17,6 @@ from agents.renewal.nodes import (
     send_contacts,
     update_statuses,
 )
-
 
 # ---------------------------------------------------------------------------
 # State

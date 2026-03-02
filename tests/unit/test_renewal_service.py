@@ -5,13 +5,13 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
-UTC = timezone.utc
-
 import pytest
 import pytest_asyncio
 
 from models.database import Client, Insurer, Policy, Renewal
 from services.renewal_service import RenewalService
+
+UTC = timezone.utc
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +131,9 @@ async def test_get_or_create_renewal_creates_new(db_session, policy_obj, client_
 
 
 @pytest.mark.asyncio
-async def test_get_or_create_renewal_returns_existing(db_session, renewal_obj, policy_obj, client_obj):
+async def test_get_or_create_renewal_returns_existing(
+    db_session, renewal_obj, policy_obj, client_obj
+):
     """Deve retornar renovação existente sem duplicar."""
     service = RenewalService(db_session)
     renewal = await service.get_or_create_renewal(
@@ -162,13 +164,17 @@ async def test_register_contact_attempt_regua_next_contact(db_session, renewal_o
 
     # 1º contato → próximo em 15d antes do vencimento
     renewal = await service.register_contact_attempt(renewal_obj.id)
-    expected_15d = datetime(expiry.year, expiry.month, expiry.day, 8, 0, tzinfo=UTC) - timedelta(days=15)
+    expected_15d = (
+        datetime(expiry.year, expiry.month, expiry.day, 8, 0, tzinfo=UTC) - timedelta(days=15)
+    )
     assert renewal.next_contact_at is not None
     assert renewal.next_contact_at.date() == expected_15d.date()
 
     # 2º contato → próximo em 7d antes do vencimento
     renewal = await service.register_contact_attempt(renewal_obj.id)
-    expected_7d = datetime(expiry.year, expiry.month, expiry.day, 8, 0, tzinfo=UTC) - timedelta(days=7)
+    expected_7d = (
+        datetime(expiry.year, expiry.month, expiry.day, 8, 0, tzinfo=UTC) - timedelta(days=7)
+    )
     assert renewal.next_contact_at.date() == expected_7d.date()  # type: ignore[union-attr]
 
     # 3º contato → próximo no dia do vencimento
