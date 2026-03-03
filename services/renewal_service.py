@@ -108,7 +108,7 @@ class RenewalService:
                         item_description=policy.item_description,
                         expiry_date=policy.end_date,  # type: ignore[arg-type]
                         days_until_expiry=days,
-                        renewal_id=existing_renewal.id if existing_renewal else None,
+                        renewal_id=existing_renewal.id if existing_renewal else None,  # type: ignore[arg-type]
                     )
                 )
 
@@ -161,9 +161,9 @@ class RenewalService:
 
         renewal.status = status  # type: ignore[assignment]
         if intent is not None:
-            renewal.client_intent = intent
+            renewal.client_intent = intent  # type: ignore[assignment]
         if notes is not None:
-            renewal.intent_notes = notes
+            renewal.intent_notes = notes  # type: ignore[assignment]
 
         await self.db.commit()
         await self.db.refresh(renewal)
@@ -183,8 +183,8 @@ class RenewalService:
         renewal = result.scalar_one()
 
         now = datetime.now(UTC)
-        renewal.contact_count = (renewal.contact_count or 0) + 1
-        renewal.last_contact_at = now
+        renewal.contact_count = (renewal.contact_count or 0) + 1  # type: ignore[assignment]
+        renewal.last_contact_at = now  # type: ignore[assignment]
         renewal.status = "contacted"  # type: ignore[assignment]
 
         expiry = renewal.expiry_date
@@ -194,16 +194,16 @@ class RenewalService:
 
             if count == 1:
                 # Após 1º contato (30d): próximo em 15d antes
-                renewal.next_contact_at = expiry_dt - timedelta(days=15)
+                renewal.next_contact_at = expiry_dt - timedelta(days=15)  # type: ignore[assignment]
             elif count == 2:
                 # Após 2º contato (15d): próximo em 7d antes
-                renewal.next_contact_at = expiry_dt - timedelta(days=7)
+                renewal.next_contact_at = expiry_dt - timedelta(days=7)  # type: ignore[assignment]
             elif count == 3:
                 # Após 3º contato (7d): próximo no dia do vencimento
-                renewal.next_contact_at = expiry_dt
+                renewal.next_contact_at = expiry_dt  # type: ignore[assignment]
             else:
                 # Após 4º contato (dia 0): sem próximo agendado — aguarda resposta ou no_response
-                renewal.next_contact_at = None
+                renewal.next_contact_at = None  # type: ignore[assignment]
 
         await self.db.commit()
         await self.db.refresh(renewal)
