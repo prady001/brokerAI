@@ -18,7 +18,7 @@ UTC = timezone.utc
 logger = logging.getLogger(__name__)
 
 RenewalStatus = Literal["pending", "contacted", "confirmed", "refused", "no_response", "lost"]
-ClientIntent = Literal["wants_renewal", "refused", "wants_quote"]
+ClientIntent = Literal["wants_renewal", "refused", "wants_quote", "needs_review"]
 
 
 @dataclass
