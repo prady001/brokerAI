@@ -256,7 +256,7 @@ class RenewalService:
         updated_ids: list[UUID] = []
         for renewal in renewals:
             renewal.status = "no_response"  # type: ignore[assignment]
-            updated_ids.append(renewal.id)
+            updated_ids.append(renewal.id)  # type: ignore[arg-type]
 
         if updated_ids:
             await self.db.commit()

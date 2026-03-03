@@ -87,7 +87,7 @@ async def whatsapp_webhook(
     if client is not None:
         # Verifica se há renovação ativa para esse cliente
         renewal_service = RenewalService(db)
-        active_renewal = await renewal_service.get_active_renewal_for_client(client.id)
+        active_renewal = await renewal_service.get_active_renewal_for_client(client.id)  # type: ignore[arg-type]
 
         if active_renewal is not None:
             logger.info(
