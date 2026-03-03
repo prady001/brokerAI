@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # Notificações
     broker_notification_phone: str
     broker_notification_email: str
+    broker_name: str = "sua corretora"
 
     # Agente de renovação (CRON)
     renewal_cron_hour: int = 8
