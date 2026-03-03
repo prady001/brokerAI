@@ -11,7 +11,7 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.database import Client, Policy, Renewal
+from models.database import Client, Insurer, Policy, Renewal
 
 UTC = timezone.utc
 
@@ -34,6 +34,17 @@ class RenewalCandidate:
     expiry_date: date
     days_until_expiry: int
     renewal_id: UUID | None  # None se ainda não tem registro de renovação
+
+
+@dataclass
+class RenewalDetail:
+    """Renovação enriquecida com dados de cliente, apólice e seguradora."""
+    renewal: Renewal
+    client_name: str
+    client_phone: str
+    policy_number: str
+    item_description: str | None
+    insurer_name: str | None
 
 
 class RenewalService:
@@ -202,6 +213,55 @@ class RenewalService:
             renewal.contact_count,
         )
         return renewal
+
+    async def get_renewal_with_details(self, renewal_id: UUID) -> RenewalDetail | None:
+        """Busca renovação com dados enriquecidos de cliente, apólice e seguradora."""
+        result = await self.db.execute(
+            select(Renewal, Client, Policy, Insurer)
+            .join(Policy, Renewal.policy_id == Policy.id)
+            .join(Client, Renewal.client_id == Client.id)
+            .outerjoin(Insurer, Policy.insurer_id == Insurer.id)
+            .where(Renewal.id == renewal_id)
+        )
+        row = result.one_or_none()
+        if row is None:
+            return None
+
+        renewal, client, policy, insurer = row
+        return RenewalDetail(
+            renewal=renewal,
+            client_name=client.full_name,
+            client_phone=client.phone_whatsapp or "",
+            policy_number=policy.policy_number,
+            item_description=policy.item_description,
+            insurer_name=insurer.name if insurer else None,
+        )
+
+    async def mark_overdue_renewals(self, overdue_days: int = 3) -> list[UUID]:
+        """Marca como no_response renovações com status 'contacted' cuja
+        expiry_date + overdue_days <= hoje."""
+        today = date.today()
+        cutoff = today - timedelta(days=overdue_days)
+
+        result = await self.db.execute(
+            select(Renewal).where(
+                and_(
+                    Renewal.status == "contacted",
+                    Renewal.expiry_date <= cutoff,
+                )
+            )
+        )
+        renewals = result.scalars().all()
+
+        updated_ids: list[UUID] = []
+        for renewal in renewals:
+            renewal.status = "no_response"  # type: ignore[assignment]
+            updated_ids.append(renewal.id)
+
+        if updated_ids:
+            await self.db.commit()
+
+        return updated_ids
 
     async def get_renewal_by_id(self, renewal_id: UUID) -> Renewal | None:
         """Busca renovação pelo ID."""

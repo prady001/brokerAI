@@ -77,7 +77,7 @@ SELLER_NOTIFY_NO_RESPONSE = (
     "Cliente: {nome}\n"
     "Seguro: {item} | {policy_number} | {seguradora}\n"
     "Vigência: {data_vencimento}\n"
-    "{tentativas} tentativas de contato sem resposta.\n"
+    "{tentativas_texto} de contato sem resposta.\n"
     "Entre em contato diretamente para evitar perda."
 )
 
@@ -87,4 +87,13 @@ SELLER_NOTIFY_WANTS_QUOTE = (
     "Seguro: {item} | {policy_number} | {seguradora}\n"
     "Vigência: {data_vencimento}\n"
     "Oportunidade: cliente aberto a propostas. Entre em contato."
+)
+
+SELLER_NOTIFY_NEEDS_REVIEW = (
+    "🔍 REVISÃO NECESSÁRIA\n"
+    "Cliente: {nome}\n"
+    "Seguro: {item} | {policy_number} | {seguradora}\n"
+    "Vigência: {data_vencimento}\n"
+    "Não foi possível classificar a resposta do cliente automaticamente.\n"
+    "Verifique a conversa e tome ação manualmente."
 )

@@ -34,8 +34,7 @@ async def run_renewal_check() -> None:
     Executa a verificação de apólices próximas do vencimento.
     Acionado pelo CRON e também disponível via POST /scheduler/renewal-check.
     """
-    from agents.renewal.graph import renewal_graph
-    from agents.renewal.nodes import inject_node_dependencies
+    from agents.renewal.graph import get_renewal_graph
     from models.database import AsyncSessionLocal
     from services.renewal_service import RenewalService
 
@@ -43,10 +42,12 @@ async def run_renewal_check() -> None:
 
     async with AsyncSessionLocal() as db:
         renewal_service = RenewalService(db)
-        inject_node_dependencies(renewal_service, llm=None)
+        renewal_graph = get_renewal_graph()
 
         result = await renewal_graph.ainvoke({
             "mode": "cron",
+            "_renewal_service": renewal_service,
+            "_llm": None,
             "policies_to_contact": [],
             "contacts_sent": [],
             "errors": [],

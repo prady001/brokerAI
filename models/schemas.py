@@ -100,3 +100,4 @@ class RenewalResponse(BaseModel):
     client_intent: str | None
     intent_notes: str | None
     created_at: datetime
+    updated_at: datetime | None

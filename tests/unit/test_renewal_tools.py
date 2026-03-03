@@ -14,6 +14,10 @@ from services.renewal_service import RenewalCandidate
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _make_config(renewal_service=None):
+    return {"configurable": {"renewal_service": renewal_service}}
+
+
 def _make_renewal_mock(status="contacted", contact_count=1, next_contact_at=None):
     m = MagicMock()
     m.id = uuid.uuid4()
@@ -51,9 +55,10 @@ async def test_get_expiring_policies_returns_candidates():
     mock_service = AsyncMock()
     mock_service.get_expiring_policies.return_value = [_make_candidate()]
 
-    renewal_tools.inject_services(mock_service, None)
-
-    result = await renewal_tools.get_expiring_policies.ainvoke({"days_ahead": [30]})
+    result = await renewal_tools.get_expiring_policies.ainvoke(
+        {"days_ahead": [30]},
+        config=_make_config(mock_service),
+    )
     assert len(result) == 1
     assert result[0]["days_until_expiry"] == 30
     assert result[0]["client_phone"] == "5511999990001"
@@ -64,9 +69,10 @@ async def test_get_expiring_policies_empty():
     mock_service = AsyncMock()
     mock_service.get_expiring_policies.return_value = []
 
-    renewal_tools.inject_services(mock_service, None)
-
-    result = await renewal_tools.get_expiring_policies.ainvoke({"days_ahead": [30]})
+    result = await renewal_tools.get_expiring_policies.ainvoke(
+        {"days_ahead": [30]},
+        config=_make_config(mock_service),
+    )
     assert result == []
 
 
@@ -80,14 +86,15 @@ async def test_send_renewal_contact_success():
     mock_service = AsyncMock()
     mock_service.register_contact_attempt.return_value = _make_renewal_mock(contact_count=1)
 
-    renewal_tools.inject_services(mock_service, object())
-
     with patch("services.notification_service.send_whatsapp_message", new_callable=AsyncMock, return_value=True):
-        result = await renewal_tools.send_renewal_contact.ainvoke({
-            "renewal_id": renewal_id,
-            "client_phone": "5511999990001",
-            "message": "Olá, sua apólice vence em 30 dias.",
-        })
+        result = await renewal_tools.send_renewal_contact.ainvoke(
+            {
+                "renewal_id": renewal_id,
+                "client_phone": "5511999990001",
+                "message": "Olá, sua apólice vence em 30 dias.",
+            },
+            config=_make_config(mock_service),
+        )
 
     assert result["success"] is True
     assert result["contact_count"] == 1
@@ -95,20 +102,23 @@ async def test_send_renewal_contact_success():
 
 @pytest.mark.asyncio
 async def test_send_renewal_contact_simulates_when_evolution_unavailable():
-    """Deve funcionar mesmo quando Evolution API não está configurada (NotImplementedError)."""
+    """Deve retornar success=False quando Evolution API não está configurada."""
     renewal_id = str(uuid.uuid4())
     mock_service = AsyncMock()
     mock_service.register_contact_attempt.return_value = _make_renewal_mock(contact_count=1)
 
-    renewal_tools.inject_services(mock_service, object())
-
     with patch("services.notification_service.send_whatsapp_message", new_callable=AsyncMock, side_effect=NotImplementedError):
-        with pytest.raises(NotImplementedError):
-            await renewal_tools.send_renewal_contact.ainvoke({
+        result = await renewal_tools.send_renewal_contact.ainvoke(
+            {
                 "renewal_id": renewal_id,
                 "client_phone": "5511999990001",
                 "message": "Teste",
-            })
+            },
+            config=_make_config(mock_service),
+        )
+
+    assert result["success"] is False
+    assert result["contact_count"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -121,13 +131,14 @@ async def test_register_client_intent_wants_renewal():
     mock_service = AsyncMock()
     mock_service.update_renewal_status.return_value = _make_renewal_mock(status="confirmed")
 
-    renewal_tools.inject_services(mock_service, None)
-
-    result = await renewal_tools.register_client_intent.ainvoke({
-        "renewal_id": renewal_id,
-        "intent": "wants_renewal",
-        "notes": None,
-    })
+    result = await renewal_tools.register_client_intent.ainvoke(
+        {
+            "renewal_id": renewal_id,
+            "intent": "wants_renewal",
+            "notes": None,
+        },
+        config=_make_config(mock_service),
+    )
 
     assert result["intent"] == "wants_renewal"
     mock_service.update_renewal_status.assert_called_once()
@@ -141,13 +152,14 @@ async def test_register_client_intent_refused_with_notes():
     mock_service = AsyncMock()
     mock_service.update_renewal_status.return_value = _make_renewal_mock(status="refused")
 
-    renewal_tools.inject_services(mock_service, None)
-
-    result = await renewal_tools.register_client_intent.ainvoke({
-        "renewal_id": renewal_id,
-        "intent": "refused",
-        "notes": "Preço muito alto",
-    })
+    result = await renewal_tools.register_client_intent.ainvoke(
+        {
+            "renewal_id": renewal_id,
+            "intent": "refused",
+            "notes": "Preço muito alto",
+        },
+        config=_make_config(mock_service),
+    )
 
     assert result["notes"] == "Preço muito alto"
     call_kwargs = mock_service.update_renewal_status.call_args
@@ -161,7 +173,6 @@ async def test_register_client_intent_refused_with_notes():
 @pytest.mark.asyncio
 async def test_notify_seller_sends_message():
     renewal_id = str(uuid.uuid4())
-    renewal_tools.inject_services(MagicMock(), object())
 
     with patch("services.notification_service.send_whatsapp_message", new_callable=AsyncMock, return_value=True):
         result = await renewal_tools.notify_seller.ainvoke({
@@ -174,6 +185,21 @@ async def test_notify_seller_sends_message():
     assert result["seller_phone"] == "5511988880001"
 
 
+@pytest.mark.asyncio
+async def test_notify_seller_simulates_when_evolution_unavailable():
+    """Deve retornar success=False quando Evolution API não está configurada."""
+    renewal_id = str(uuid.uuid4())
+
+    with patch("services.notification_service.send_whatsapp_message", new_callable=AsyncMock, side_effect=NotImplementedError):
+        result = await renewal_tools.notify_seller.ainvoke({
+            "renewal_id": renewal_id,
+            "seller_phone": "5511988880001",
+            "summary_message": "Teste",
+        })
+
+    assert result["success"] is False
+
+
 # ---------------------------------------------------------------------------
 # mark_renewal_status
 # ---------------------------------------------------------------------------
@@ -184,11 +210,12 @@ async def test_mark_renewal_status():
     mock_service = AsyncMock()
     mock_service.update_renewal_status.return_value = _make_renewal_mock(status="no_response")
 
-    renewal_tools.inject_services(mock_service, None)
-
-    result = await renewal_tools.mark_renewal_status.ainvoke({
-        "renewal_id": renewal_id,
-        "status": "no_response",
-    })
+    result = await renewal_tools.mark_renewal_status.ainvoke(
+        {
+            "renewal_id": renewal_id,
+            "status": "no_response",
+        },
+        config=_make_config(mock_service),
+    )
 
     assert result["status"] == "no_response"

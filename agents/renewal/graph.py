@@ -5,7 +5,8 @@ Dois fluxos no mesmo grafo:
   - mode=cron:      check_expiring_policies → send_contacts → update_statuses
   - mode=whatsapp:  process_client_response → notify_sellers → update_statuses
 """
-from typing import Literal
+from functools import lru_cache
+from typing import Any, Literal
 
 from langgraph.graph import END, StateGraph
 from typing_extensions import TypedDict
@@ -31,6 +32,8 @@ class RenewalState(TypedDict, total=False):
     intent: str | None
     notifications_sent: list[dict]
     errors: list[str]
+    _renewal_service: Any             # injetado por quem invoca o grafo
+    _llm: Any                         # injetado por quem invoca o grafo
 
 
 # ---------------------------------------------------------------------------
@@ -79,4 +82,7 @@ def build_renewal_graph() -> StateGraph:
     return graph
 
 
-renewal_graph = build_renewal_graph().compile()
+@lru_cache(maxsize=1)
+def get_renewal_graph():
+    """Retorna o grafo compilado (lazy singleton)."""
+    return build_renewal_graph().compile()
