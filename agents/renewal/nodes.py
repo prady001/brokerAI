@@ -159,7 +159,7 @@ async def process_client_response(state: dict) -> dict:
     Processa resposta do cliente via WhatsApp e extrai intenção usando LLM.
     Modo: whatsapp
     """
-    from langchain_anthropic import ChatAnthropic
+    from agents.llm import get_llm
     from langchain_core.messages import HumanMessage, SystemMessage
 
     client_response = state.get("client_response", "")
@@ -170,7 +170,7 @@ async def process_client_response(state: dict) -> dict:
 
     llm = state.get("_llm")
     if llm is None:
-        llm = ChatAnthropic(model="claude-haiku-4-5-20251001", api_key=settings.anthropic_api_key)  # type: ignore[call-arg]
+        llm = get_llm(max_tokens=256)
 
     classification_prompt = f"""Classifique a resposta do cliente em uma das três categorias:
 - wants_renewal: o cliente quer renovar a apólice

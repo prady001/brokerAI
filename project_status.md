@@ -1,7 +1,7 @@
 # Status do Projeto — brokerAI
 
-> **Última atualização:** Fevereiro de 2026
-> **Status geral:** 🟡 Planejamento
+> **Última atualização:** Março de 2026
+> **Status geral:** 🟡 Em desenvolvimento
 
 ---
 
@@ -11,7 +11,7 @@
 |---|---|---|---|
 | M0 — Documentação e Planejamento | Fev/2026 | Arquitetura, tese, casos de uso, roadmap | 🟡 Em andamento |
 | M1 — Fundação | Semanas 1–3 | Infra, Evolution API (WhatsApp), cadastro de carteira | ✅ Concluído (código) |
-| M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | 🟡 Implementado (aguarda chip WhatsApp) |
+| M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | ✅ Validado E2E com Docker + Gemini (aguarda chip WhatsApp) |
 | M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | ⬜ Não iniciado |
 | M4 — Agente de Renovação | Semanas 7–10 | Régua de renovação proativa + qualificação de lead para vendedor | ✅ Concluído (código) |
 | **MVP** | **Mês 3** | **Três agentes em produção, primeira corretora pagante** | ⬜ Não iniciado |
@@ -141,7 +141,7 @@
 | PostgreSQL (Oracle Cloud Free Tier) | — | ⬜ A configurar | MVP |
 | Redis (Oracle Cloud Free Tier) | — | ⬜ A configurar | MVP |
 | Cloudflare R2 (fotos de sinistros) | — | ⬜ Conta não criada | MVP |
-| LangSmith | — | ⬜ Projeto não criado | MVP |
+| LangSmith | — | ✅ Configurado (LANGCHAIN_API_KEY + tracing ativo) | MVP |
 | Sentry | — | ⬜ Projeto não criado | MVP |
 | Portais das seguradoras (RPA/API) | — | ⬜ Pós-MVP | V1 |
 | Focus NFe API (NFS-e) | — | ⬜ Pós-MVP | V1 |

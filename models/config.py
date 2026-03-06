@@ -8,7 +8,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
     # LLM
-    anthropic_api_key: str
+    llm_provider: str = "anthropic"  # "anthropic" | "google"
+    anthropic_api_key: str = ""
+    google_api_key: str = ""
 
     # WhatsApp (Evolution API — self-hosted)
     evolution_server_url: str = "http://localhost:8080"

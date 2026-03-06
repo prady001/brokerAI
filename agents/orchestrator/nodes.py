@@ -2,12 +2,10 @@
 Nós do Agente Orquestrador.
 Gerencia estado de conversa no Redis e roteamento de intenções via LLM.
 """
-import functools
 import json
 import logging
 
 import redis.asyncio as aioredis
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents.orchestrator.prompts import INTENT_DETECTION_PROMPT
@@ -28,18 +26,11 @@ def _get_redis() -> aioredis.Redis:
     return _redis_client
 
 
-@functools.lru_cache(maxsize=1)
-def _get_llm() -> ChatAnthropic:
-    model = (
-        "claude-haiku-4-5-20251001"
-        if settings.environment == "development"
-        else "claude-sonnet-4-6"
-    )
-    return ChatAnthropic(
-        model=model,
-        api_key=settings.anthropic_api_key,
-        max_tokens=256,
-    )
+from agents.llm import get_llm as _get_llm_factory
+
+
+def _get_llm():
+    return _get_llm_factory(max_tokens=256)
 
 
 def _conversation_key(phone: str) -> str:

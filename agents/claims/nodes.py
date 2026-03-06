@@ -2,11 +2,9 @@
 Nós do grafo do Agente de Sinistros.
 Cada nó recebe ClaimsState e retorna um dict com os campos atualizados.
 """
-import functools
 import json
 import logging
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents.claims.prompts import (
@@ -29,18 +27,11 @@ from services import claim_service, notification_service
 logger = logging.getLogger(__name__)
 
 
-@functools.lru_cache(maxsize=1)
-def _get_llm() -> ChatAnthropic:
-    model = (
-        "claude-haiku-4-5-20251001"
-        if settings.environment == "development"
-        else "claude-sonnet-4-6"
-    )
-    return ChatAnthropic(
-        model=model,
-        api_key=settings.anthropic_api_key,
-        max_tokens=1024,
-    )
+from agents.llm import get_llm as _get_llm_factory
+
+
+def _get_llm():
+    return _get_llm_factory(max_tokens=1024)
 
 
 def _messages_to_text(messages: list[dict]) -> str:
