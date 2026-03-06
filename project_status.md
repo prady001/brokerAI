@@ -11,7 +11,7 @@
 |---|---|---|---|
 | M0 — Documentação e Planejamento | Fev/2026 | Arquitetura, tese, casos de uso, roadmap | 🟡 Em andamento |
 | M1 — Fundação | Semanas 1–3 | Infra, Evolution API (WhatsApp), cadastro de carteira | ✅ Concluído (código) |
-| M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | ⬜ Não iniciado |
+| M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | 🟡 Implementado (aguarda chip WhatsApp) |
 | M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | ⬜ Não iniciado |
 | M4 — Agente de Renovação | Semanas 7–10 | Régua de renovação proativa + qualificação de lead para vendedor | ✅ Concluído (código) |
 | **MVP** | **Mês 3** | **Três agentes em produção, primeira corretora pagante** | ⬜ Não iniciado |
@@ -87,14 +87,16 @@
 
 ### Entregas esperadas
 
-- [ ] `ClaimService` com CRUD de sinistros
-- [ ] Subgraph LangGraph do Agente de Sinistros
-- [ ] Tools implementadas: `classify_claim`, `collect_claim_info`, `open_claim_at_insurer`, `relay_update_to_client`, `escalate_to_broker`, `store_claim_history`
-- [ ] Orquestrador configurado para rotear WhatsApp → Agente de Sinistros
-- [ ] Upload de fotos via WhatsApp → Cloudflare R2
-- [ ] Escalada automática para sinistros graves com resumo estruturado
-- [ ] Testes dos tipos mais comuns: guincho, assistência, vidro (sinistros simples)
-- [ ] Documentação: `docs/agentes/sinistro.md`
+- [x] `ClaimService` com CRUD de sinistros (`services/claim_service.py`)
+- [x] Grafo LangGraph do Agente de Sinistros (`agents/claims/graph.py`, `nodes.py`, `prompts.py`)
+- [x] Nós implementados: `collect_info` (multi-turn), `classify`, `open_claim`, `check_updates`, `relay_to_client`, `escalate`, `close`
+- [x] Orquestrador configurado para rotear WhatsApp → Agente de Sinistros (`agents/orchestrator/nodes.py`)
+- [x] Webhook conectado ao orquestrador E2E (`api/routes/webhook.py`)
+- [x] Escalada automática para sinistros graves com resumo estruturado (Lucimara)
+- [x] Testes unitários: classify, collect_info, open_claim, escalate (`tests/unit/test_claims_agent.py`)
+- [x] Documentação atualizada: `docs/agentes/sinistro.md`
+- [ ] Upload de fotos via WhatsApp → Cloudflare R2 (pós-MVP)
+- [ ] Evolution API conectada a número WhatsApp real (aguardando chip)
 
 ---
 
@@ -159,18 +161,24 @@
 | D-03 | Importação de apólices | **Digitação manual** | CSV do Agger pode ser avaliado em V1. |
 | D-08 | Storage de arquivos (fotos de sinistros) | **Cloudflare R2** | 10GB gratuitos/mês, sem custo de egress. Substitui AWS S3 no MVP. |
 
-| D-04 | Seguradoras MVP: Porto Seguro, Allianz, Azul Seguros, Tokio Marine | **Decidido** — ver tabela abaixo |
+| D-04 | Seguradoras MVP | **Revisado** — ver tabela abaixo (entrevista mar/2026) |
 
-#### Mapa de portais — D-04
+#### Seguradoras reais da corretora — D-04 (revisado mar/2026)
 
-| Seguradora | API REST? | Estratégia MVP | 2FA | Ação necessária |
-|---|---|---|---|---|
-| Porto Seguro | ✅ OAuth 2.0 (Sensedia) | API | ReCaptcha no portal (inviabiliza RPA) | Cadastrar parceiro em `dev.portoseguro.com.br` |
-| Allianz | ❌ Não | RPA (Playwright) | Sem 2FA confirmado (SAML legado) | Nenhuma — implementar em M2 |
-| Azul Seguros | ❌ Não | RPA (Playwright) | Sem 2FA (senha dupla no extrato) | Nenhuma — implementar em M2 |
-| Tokio Marine | ✅ OAuth 2.0 (Sensedia) | API | Token 2FA confirmado (tipo a verificar) | Cadastrar parceiro em `integracao.tokiomarine.com.br` |
+Seguradoras auto principais (em uso ativo):
 
-**Ordem de implementação:** Allianz e Azul (M2 início) → Porto Seguro e Tokio Marine (M2 fim, após aprovação de parceiro).
+| Seguradora | Portal de sinistros? | Estratégia MVP |
+|---|---|---|
+| Zurich | ❌ Não confirmado | Notificação para Lucimara — abertura manual |
+| Alpha | ❌ Não confirmado | Notificação para Lucimara (atendimento ruim — risco) |
+| Justus | ❌ Não confirmado | Notificação para Lucimara |
+| BP | ❌ Não confirmado | Notificação para Lucimara |
+| Suíça | ❌ Não confirmado | Notificação para Lucimara |
+| Tokio Marine | ✅ Portal próprio | RPA (Playwright) — única com portal confirmado |
+
+Parceiros recentes (Yellum, Porto, Allianz): confirmar fluxo de sinistros antes de incluir no MVP.
+
+**Impacto no M2:** o agente não precisa de RPA para a maioria das seguradoras. O fluxo principal é coletar dados → notificar Lucimara com resumo → Lucimara abre/acompanha manualmente → agente repassa atualizações ao cliente quando Lucimara informar.
 
 ### Abertas ⬜
 
@@ -179,6 +187,9 @@
 | D-05 | Confirmar município do CNPJ da corretora (para configurar Focus NFe) | Antes de M2 |
 | D-06 | Templates de mensagem WhatsApp aprovados pela Meta | Antes de M2 |
 | D-07 | Provedor de gateway SMS para 2FA (Twilio, Zenvia, ou outro) | Antes de M2 |
+| D-09 | Número WhatsApp dedicado para sinistros (pessoal ou empresa) | Antes de M2 |
+| D-10 | Exportação de CSV do Agger com dados da carteira (nome, telefone, apólice, seguradora, vigência) | Antes de M2 |
+| D-11 | Canal de contato das seguradoras sem portal (Zurich, Alpha, Justus, BP, Suíça) — WhatsApp, ligação ou e-mail? | Antes de M2 |
 
 ---
 

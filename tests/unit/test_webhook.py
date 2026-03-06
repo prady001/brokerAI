@@ -2,6 +2,7 @@
 Testes unitários do webhook handler do Evolution API.
 """
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -49,7 +50,8 @@ async def test_webhook_ignores_unknown_event(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_webhook_receives_message(api_client: AsyncClient):
     """Mensagem válida deve retornar status received com o telefone."""
-    response = await api_client.post("/webhook/whatsapp", json=VALID_PAYLOAD, headers=VALID_HEADERS)
+    with patch("api.routes.webhook._handle_message", new_callable=AsyncMock):
+        response = await api_client.post("/webhook/whatsapp", json=VALID_PAYLOAD, headers=VALID_HEADERS)
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "received"

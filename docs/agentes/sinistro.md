@@ -215,10 +215,21 @@ Agente: Recebi a foto! Apólice encontrada — Toyota Yaris, Alfa Seguros.
 
 ---
 
+## Realidade operacional da corretora (atualizado mar/2026)
+
+Com base na entrevista com a corretora (`docs/produto/entrevista-corretora-mar2026.md`):
+
+- **Seguradoras auto principais:** Zurich, Alpha, Justus, BP, Suíça (parceiros recentes: Yellum, Porto, Allianz, Tokio)
+- **Apenas Tokio tem portal próprio** para acompanhamento de sinistros. Para todas as demais, o acompanhamento é feito por ligação ou WhatsApp com a seguradora.
+- **Lucimara** é a responsável pelo acompanhamento de sinistros. O agente deve notificá-la, não um "corretor genérico".
+- O fluxo humano atual: cliente aciona → vendedor encaminha para Lucimara → Lucimara acompanha e repassa atualizações.
+
+---
+
 ## Limitações conhecidas
 
-- **Abertura de chamado no MVP:** no MVP, a abertura na seguradora é feita via WhatsApp relay (agente envia mensagem para o canal da seguradora) ou manualmente pelo corretor após receber o resumo. Integração via API é planejada para V1 (Porto Seguro e Tokio Marine).
-- **Monitoramento de status:** no MVP o agente não monitora o portal da seguradora automaticamente — as atualizações são repassadas conforme chegam pelo canal de atendimento. Monitoramento ativo (RPA) é V1.
+- **Abertura de chamado no MVP:** a abertura na seguradora é feita via notificação estruturada para Lucimara, que abre manualmente. RPA (Playwright) só é viável para Tokio no MVP. Integração direta via API é planejada para V1.
+- **Monitoramento de status:** no MVP o agente não monitora portal automaticamente — Lucimara repassa atualizações que o agente então encaminha ao cliente via WhatsApp. Monitoramento ativo (RPA/polling) é V1.
 - **Fotos e documentos:** armazenados no Cloudflare R2. O agente não faz OCR no MVP — apenas armazena e envia à seguradora.
-- **Sinistros sem apólice cadastrada:** se a placa ou número da apólice não estiver no banco, o agente coleta os dados e escala para o corretor cadastrar manualmente.
-- **Horário de atendimento da seguradora:** o agente não controla o horário de funcionamento do atendimento da seguradora. Sinistros abertos fora do horário ficam em espera e o cliente é avisado.
+- **Sinistros sem apólice cadastrada:** se a placa ou número da apólice não estiver no banco, o agente coleta os dados e escala para Lucimara cadastrar manualmente.
+- **Horário de atendimento da seguradora:** o agente não controla o horário de funcionamento da seguradora. Sinistros abertos fora do horário ficam em espera e o cliente é avisado.
