@@ -84,7 +84,12 @@ async def whatsapp_webhook(
 
     logger.info("Mensagem de %s (%s): %s", phone, client_name, text[:80])
 
-    await _handle_message(phone=phone, client_name=client_name, text=text)
+    try:
+        await _handle_message(phone=phone, client_name=client_name, text=text)
+    except Exception as exc:
+        logger.error("Erro ao processar mensagem de %s: %s", phone, exc, exc_info=True)
+        return {"status": "error"}
+
     return {"status": "received", "phone": phone}
 
 
@@ -194,8 +199,11 @@ async def _resume_claims_agent(
 
 
 async def _persist_or_close(phone: str, state: dict) -> None:
-    """Persiste estado no Redis ou remove se o sinistro foi encerrado/escalado."""
-    if state.get("closed") or state.get("escalated"):
+    """Persiste estado no Redis ou remove se o sinistro foi encerrado."""
+    if state.get("closed"):
         await delete_conversation_state(phone)
+    elif state.get("escalated"):
+        # Mantém estado por 24h para reconhecer follow-ups pós-escalada
+        await save_conversation_state(phone, state, ttl=86400)
     else:
         await save_conversation_state(phone, state)

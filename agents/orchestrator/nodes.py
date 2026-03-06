@@ -2,6 +2,7 @@
 Nós do Agente Orquestrador.
 Gerencia estado de conversa no Redis e roteamento de intenções via LLM.
 """
+import functools
 import json
 import logging
 
@@ -27,6 +28,7 @@ def _get_redis() -> aioredis.Redis:
     return _redis_client
 
 
+@functools.lru_cache(maxsize=1)
 def _get_llm() -> ChatAnthropic:
     model = (
         "claude-haiku-4-5-20251001"
@@ -62,14 +64,14 @@ async def load_conversation_state(phone: str) -> dict | None:
         return None
 
 
-async def save_conversation_state(phone: str, state: dict) -> None:
-    """Persiste o estado da conversa no Redis com TTL de 30 dias."""
+async def save_conversation_state(phone: str, state: dict, ttl: int | None = None) -> None:
+    """Persiste o estado da conversa no Redis. TTL padrão: 30 dias."""
     redis = _get_redis()
-    await redis.set(_conversation_key(phone), json.dumps(state), ex=_CONVERSATION_TTL)
+    await redis.set(_conversation_key(phone), json.dumps(state), ex=ttl or _CONVERSATION_TTL)
 
 
 async def delete_conversation_state(phone: str) -> None:
-    """Remove o estado da conversa (sinistro encerrado ou escalado)."""
+    """Remove o estado da conversa do Redis (sinistro encerrado)."""
     redis = _get_redis()
     await redis.delete(_conversation_key(phone))
 

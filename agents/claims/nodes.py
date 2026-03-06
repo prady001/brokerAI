@@ -2,6 +2,7 @@
 Nós do grafo do Agente de Sinistros.
 Cada nó recebe ClaimsState e retorna um dict com os campos atualizados.
 """
+import functools
 import json
 import logging
 
@@ -9,9 +10,11 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents.claims.prompts import (
+    CLAIM_CLOSED_MESSAGE,
     CLAIM_REGISTERED_NO_POLICY,
     CLAIM_REGISTERED_SIMPLE,
     CLAIMS_SYSTEM_PROMPT,
+    CLASSIFY_CLAIM_PROMPT,
     ESCALATION_CLIENT_MESSAGE,
     EXTRACT_CLAIM_INFO_PROMPT,
     GENERATE_QUESTION_PROMPT,
@@ -26,6 +29,7 @@ from services import claim_service, notification_service
 logger = logging.getLogger(__name__)
 
 
+@functools.lru_cache(maxsize=1)
 def _get_llm() -> ChatAnthropic:
     model = (
         "claude-haiku-4-5-20251001"
@@ -40,8 +44,9 @@ def _get_llm() -> ChatAnthropic:
 
 
 def _messages_to_text(messages: list[dict]) -> str:
+    recent = messages[-20:]
     lines = []
-    for m in messages:
+    for m in recent:
         role = "Cliente" if m.get("role") == "user" else "Assistente"
         lines.append(f"{role}: {m.get('content', '')}")
     return "\n".join(lines)
@@ -169,7 +174,6 @@ async def classify_node(state: dict) -> dict:
         return {"severity": "grave"}
 
     # Fallback: LLM decide
-    from agents.claims.prompts import CLASSIFY_CLAIM_PROMPT
     llm = _get_llm()
     prompt = CLASSIFY_CLAIM_PROMPT.format(claim_type=claim_type, description=description)
     response = await llm.ainvoke([HumanMessage(content=prompt)])
@@ -199,16 +203,26 @@ async def open_claim_node(state: dict) -> dict:
     description = claim_info.get("description", "")
     severity = state.get("severity", "simple")
 
+    if not client_id:
+        logger.warning("open_claim_node: client_id ausente — abortando criação de sinistro")
+        await notification_service.send_whatsapp_message(
+            client_phone,
+            "Não conseguimos identificar seu cadastro. Por favor, entre em contato "
+            "diretamente com a corretora para registrar o sinistro. 📞",
+        )
+        return {}
+
     # Tenta localizar a apólice no banco pelo identificador fornecido
     policy: dict | None = None
     identifier = claim_info.get("identifier", "")
-    if identifier and client_id:
+    if identifier:
         policy = await claim_service.get_policy_by_identifier(identifier, client_id)
 
     policy_id = policy["id"] if policy else None
     insurer_id = policy["insurer_id"] if policy else None
     policy_info = (
-        (policy["item_description"] or policy["policy_number"]) if policy else "não identificada"
+        (policy["item_description"] or policy["policy_number"] or "não identificada")
+        if policy else "não identificada"
     )
 
     claim_id = await claim_service.create_claim(
@@ -264,9 +278,17 @@ async def open_claim_node(state: dict) -> dict:
 
 async def check_updates_node(state: dict) -> dict:
     """
-    MVP: não há polling de portal. Informa ao cliente que ainda aguardamos.
-    Nos próximos ciclos (quando cliente mandar mensagem), retorna aqui.
-    V1+: implementar polling via Playwright no portal da seguradora.
+    MVP: não há polling de portal. Informa ao cliente que ainda aguardamos e retorna.
+
+    LIMITAÇÃO MVP: este nó sempre retorna update_status="no_update".
+    Os caminhos "has_update" (relay_to_client) e "closed" (close_node) são
+    intencionalmente inalcançáveis nesta versão — o encerramento do sinistro
+    ocorre via atualização direta no banco pela equipe da corretora.
+
+    TODO(V1): substituir pela implementação de polling via Playwright no portal
+    de cada seguradora (Tokio Marine primeiro, conforme entrevista mar/2026).
+    Quando implementado, este nó poderá retornar "has_update" ou "closed",
+    desbloqueando relay_to_client_node e close_node.
     """
     client_phone = state.get("client_phone", "")
     claim_id = state.get("claim_id", "")
@@ -278,6 +300,7 @@ async def check_updates_node(state: dict) -> dict:
     messages = state.get("messages", [])
     updated_messages = messages + [{"role": "assistant", "content": msg}]
 
+    # MVP: sempre "no_update" — ver docstring acima
     return {
         "update_status": "no_update",
         "poll_count": state.get("poll_count", 0) + 1,
@@ -328,13 +351,17 @@ async def escalate_node(state: dict) -> dict:
 
     # Cria o sinistro no banco antes de escalar (se ainda não foi criado)
     if not claim_id:
-        claim_id = await claim_service.create_claim(
-            client_id=state.get("client_id", ""),
-            claim_type=claim_type,
-            severity="grave",
-            description=description,
-        )
-        await claim_service.update_claim_status(claim_id, "escalated")
+        client_id = state.get("client_id", "")
+        if not client_id:
+            logger.warning("escalate_node: client_id ausente — abortando criação de sinistro")
+        else:
+            claim_id = await claim_service.create_claim(
+                client_id=client_id,
+                claim_type=claim_type,
+                severity="grave",
+                description=description,
+            )
+            await claim_service.update_claim_status(claim_id, "escalated")
 
     claim_id_short = claim_id[:8].upper() if claim_id else "---"
     policy_info = claim_info.get("identifier") or "não identificada"
@@ -378,7 +405,6 @@ async def close_node(state: dict) -> dict:
     if claim_id:
         await claim_service.close_claim(claim_id)
 
-    from agents.claims.prompts import CLAIM_CLOSED_MESSAGE
     claim_id_short = claim_id[:8].upper() if claim_id else "---"
     msg = CLAIM_CLOSED_MESSAGE.format(
         claim_id_short=claim_id_short,

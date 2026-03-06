@@ -68,11 +68,13 @@ def build_claims_graph() -> StateGraph:
 
     graph.add_edge("open_claim", "check_updates")
 
-    # Acompanhamento: sem novidade → END; atualização → relay; encerrado → close
+    # Acompanhamento: MVP sempre retorna "no_update" (polling não implementado).
+    # "has_update" e "closed" são caminhos reservados para V1 (Playwright portal).
+    # Ver docstring de check_updates_node para detalhes.
     graph.add_conditional_edges("check_updates", route_by_update_status, {
-        "has_update": "relay_to_client",
+        "has_update": "relay_to_client",   # TODO(V1): habilitado com polling de portal
         "no_update":  END,
-        "closed":     "close",
+        "closed":     "close",             # TODO(V1): habilitado com polling de portal
     })
 
     graph.add_conditional_edges("relay_to_client", route_after_relay, {
