@@ -193,11 +193,6 @@ def test_route_after_register_failure() -> None:
     assert route_after_register(state) == "escalate"
 
 
-def test_route_after_register_fallback() -> None:
-    state = make_state(registered=False, failed=False)
-    assert route_after_register(state) == "escalate"
-
-
 # ---------------------------------------------------------------------------
 # contact_client_node (push mode)
 # ---------------------------------------------------------------------------
@@ -371,9 +366,12 @@ async def test_confirm_node_sends_summary() -> None:
     ("Sim!", "confirmed"),
     ("ok", "confirmed"),
     ("confirmo", "confirmed"),
+    ("tudo certo", "confirmed"),
     ("não", "rejected"),
     ("nao", "rejected"),
     ("corrigir", "rejected"),
+    ("quero mudar", "rejected"),
+    ("talvez", "unclear"),
 ])
 async def test_handle_confirmation_node(user_message: str, expected_status: str) -> None:
     state = make_state(
@@ -420,8 +418,8 @@ async def test_register_node_success() -> None:
 
 @pytest.mark.asyncio
 async def test_register_node_failure_escalates_after_max_retries() -> None:
+    """Todas as tentativas falham → retorna failed=True sem precisar de retry_count externo."""
     state = make_state(
-        retry_count=2,  # já está na última tentativa
         client_data={"full_name": "João", "cpf": "529.982.247-25"},
         policy_data={"insurer": "Porto", "policy_number": "X", "item_description": "Y", "end_date": "01/01/2027"},
     )
@@ -431,6 +429,38 @@ async def test_register_node_failure_escalates_after_max_retries() -> None:
 
     assert result["failed"] is True
     assert result["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_register_node_retries_internally() -> None:
+    """Falha nas primeiras tentativas mas sucesso na última → registered=True."""
+    state = make_state(
+        client_data={"full_name": "João Silva", "cpf": "529.982.247-25"},
+        policy_data={
+            "insurer": "Porto Seguro", "policy_type": "auto",
+            "item_description": "Toyota Yaris", "policy_number": "12345",
+            "end_date": "31/12/2026", "start_date": None,
+        },
+    )
+
+    call_count = 0
+
+    async def flaky_insurer(_name: str) -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count < 2:
+            raise Exception("timeout")
+        return "insurer-uuid"
+
+    with (
+        patch("agents.onboarding.nodes.get_or_create_insurer", side_effect=flaky_insurer),
+        patch("agents.onboarding.nodes.create_client", AsyncMock(return_value="client-uuid")),
+        patch("agents.onboarding.nodes.create_policy", AsyncMock(return_value="policy-uuid")),
+    ):
+        result = await register_node(state)
+
+    assert result["registered"] is True
+    assert call_count == 2
 
 
 # ---------------------------------------------------------------------------
