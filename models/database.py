@@ -3,7 +3,7 @@ Modelos SQLAlchemy e configuração do banco de dados.
 Engine assíncrona via asyncpg + SQLAlchemy 2.0.
 """
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     JSON,
@@ -23,6 +23,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from models.config import settings
+
+UTC = timezone.utc
 
 
 def _now() -> datetime:

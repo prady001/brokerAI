@@ -13,7 +13,7 @@
 | M1 — Fundação | Semanas 1–3 | Infra, Evolution API (WhatsApp), cadastro de carteira | ✅ Concluído (código) |
 | M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | 🟡 Implementado (aguarda chip WhatsApp) |
 | M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | ⬜ Não iniciado |
-| M4 — Agente de Renovação | Semanas 7–10 | Régua de renovação proativa + qualificação de lead para vendedor | ⬜ Não iniciado |
+| M4 — Agente de Renovação | Semanas 7–10 | Régua de renovação proativa + qualificação de lead para vendedor | ✅ Concluído (código) |
 | **MVP** | **Mês 3** | **Três agentes em produção, primeira corretora pagante** | ⬜ Não iniciado |
 | **V1** | **Mês 6** | **Grafo de memória por cliente, relacionamento proativo** | ⬜ Não iniciado |
 | **V2** | **Mês 12** | **Inteligência de carteira, personalização emocional** | ⬜ Não iniciado |
@@ -119,15 +119,17 @@
 
 ### Entregas esperadas
 
-- [ ] `RenewalService` com CRUD e lógica de régua de contatos
-- [ ] Subgraph LangGraph do Agente de Renovação
-- [ ] CRON scheduler diário (08:00 BRT) — busca apólices com vencimento em 30, 15, 7, 0 dias
-- [ ] Tools implementadas: `get_expiring_policies`, `send_renewal_contact`, `register_client_intent`, `notify_seller`, `mark_renewal_status`
-- [ ] Três templates WhatsApp aprovados pela Meta (aviso, lembrete, urgência)
-- [ ] Lógica de status: `CONFIRMADO`, `RECUSADO`, `SEM_RESPOSTA`, `PERDIDO`
-- [ ] Notificação estruturada ao vendedor com contexto completo da apólice
-- [ ] Testes da régua completa (30→15→7→0 dias)
-- [ ] Documentação: `docs/agentes/renovacao.md` ✅
+- [x] `RenewalService` com CRUD e lógica de régua de contatos
+- [x] Subgraph LangGraph do Agente de Renovação (`agents/renewal/graph.py`)
+- [x] CRON scheduler diário (08:00 BRT) — `run_renewal_check` implementado
+- [x] Tools implementadas: `get_expiring_policies`, `send_renewal_contact`, `register_client_intent`, `notify_seller`, `mark_renewal_status`
+- [x] Templates WhatsApp: `TEMPLATE_30_DAYS`, `TEMPLATE_15_7_DAYS`, `TEMPLATE_DAY_ZERO`
+- [x] Lógica de status: `confirmed`, `refused`, `no_response`, `contacted`, `lost`
+- [x] Notificação estruturada ao vendedor com contexto completo da apólice
+- [x] Testes da régua completa (30→15→7→0 dias) — 22 testes unitários
+- [x] Roteamento de respostas WhatsApp → Agente de Renovação (`webhook.py`)
+- [x] Documentação: `docs/agentes/renovacao.md` ✅
+- [ ] Três templates WhatsApp aprovados pela Meta (aguardando D-06)
 
 ---
 

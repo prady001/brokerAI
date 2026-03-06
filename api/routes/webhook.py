@@ -1,6 +1,10 @@
 """
 Rota de webhook WhatsApp.
-Recebe eventos do Evolution API, roteia para o agente correto e persiste estado no Redis.
+Recebe eventos do Evolution API e roteia para o agente adequado.
+
+Roteamento:
+- Cliente com renovação ativa (status 'contacted') → Agente de Renovação (M4)
+- Demais mensagens → Agente de Sinistros / Orquestrador (M2)
 """
 import logging
 import uuid
@@ -8,6 +12,8 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.claims.graph import build_claims_graph
 from agents.orchestrator.nodes import (
@@ -18,8 +24,11 @@ from agents.orchestrator.nodes import (
     load_conversation_state,
     save_conversation_state,
 )
+from agents.renewal.graph import get_renewal_graph
 from api.middleware.auth import verify_evolution_webhook
+from models.database import Client, get_db
 from services import claim_service, notification_service
+from services.renewal_service import RenewalService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -63,11 +72,15 @@ class EvolutionWebhookPayload(BaseModel):
 async def whatsapp_webhook(
     payload: EvolutionWebhookPayload,
     _: None = Depends(verify_evolution_webhook),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
     Recebe eventos do Evolution API.
     Filtra apenas mensagens recebidas (messages.upsert, fromMe=false).
-    Roteia para agente de sinistros ou orquestrador conforme contexto.
+
+    Roteamento:
+    - Cliente com renovação ativa (status 'contacted') → Agente de Renovação
+    - Demais mensagens → Agente de Sinistros / Orquestrador (M2)
     """
     if payload.event != "messages.upsert":
         return {"status": "ignored"}
@@ -84,6 +97,39 @@ async def whatsapp_webhook(
 
     logger.info("Mensagem de %s (%s): %s", phone, client_name, text[:80])
 
+    # Verifica se há renovação ativa para o cliente (M4)
+    result = await db.execute(
+        sa_select(Client).where(Client.phone_whatsapp == phone)
+    )
+    client_row = result.scalar_one_or_none()
+
+    if client_row is not None:
+        renewal_service = RenewalService(db)
+        active_renewal = await renewal_service.get_active_renewal_for_client(client_row.id)  # type: ignore[arg-type]
+
+        if active_renewal is not None:
+            logger.info(
+                "Roteando para Agente de Renovação: client_id=%s renewal_id=%s",
+                client_row.id,
+                active_renewal.id,
+            )
+            try:
+                renewal_graph = get_renewal_graph()
+                await renewal_graph.ainvoke({
+                    "mode": "whatsapp",
+                    "client_response": text,
+                    "renewal_id": str(active_renewal.id),
+                    "_renewal_service": renewal_service,
+                    "_llm": None,
+                    "notifications_sent": [],
+                    "errors": [],
+                })
+                return {"status": "routed_to_renewal", "phone": phone}
+            except Exception:
+                logger.exception("Erro ao processar renovação para %s", phone)
+                return {"status": "error_renewal", "phone": phone}
+
+    # Sem renovação ativa — roteia para Agente de Sinistros / Orquestrador (M2)
     try:
         await _handle_message(phone=phone, client_name=client_name, text=text)
     except Exception as exc:
@@ -95,7 +141,7 @@ async def whatsapp_webhook(
 
 async def _handle_message(phone: str, client_name: str, text: str) -> None:
     """
-    Orquestra o processamento da mensagem:
+    Orquestra o processamento da mensagem (M2):
     1. Verifica se há conversa de sinistro ativa (Redis)
     2. Se sim: retoma o agente de sinistros com o estado carregado
     3. Se não: detecta intenção e roteia
