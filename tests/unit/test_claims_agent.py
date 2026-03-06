@@ -16,7 +16,6 @@ from agents.claims.nodes import (
 )
 from services.claim_service import normalize_claim_type
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
