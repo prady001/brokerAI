@@ -2,9 +2,8 @@
 Testes unitários do Agente de Sinistros (M2).
 Usa mocks para LLM e serviços externos — sem dependências de rede ou banco.
 """
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from agents.claims.nodes import (
     classify_node,
