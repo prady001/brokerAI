@@ -152,22 +152,21 @@ async def collect_client_node(state: dict) -> dict:
         "email": extracted.get("email") or prev.get("email"),
     }
 
-    missing = list(extracted.get("missing_fields", []))
     error_context = first_contact_hint
 
     # Valida CPF se presente
     cpf = client_data.get("cpf") or ""
     if cpf and not validate_cpf(cpf):
         client_data["cpf"] = None
-        if "cpf" not in missing:
-            missing.append("cpf")
         error_context = (
             "O CPF informado parece inválido. "
             "Peça que o cliente confira e informe novamente."
         )
 
-    # Recalcula campos faltantes com base no estado consolidado
-    missing = [f for f in missing if not client_data.get(f)]
+    # Recalcula missing com base nos campos obrigatórios (ignora sugestão do LLM)
+    # email é opcional — não bloqueia o fluxo
+    required = ["full_name", "cpf"]
+    missing = [f for f in required if not client_data.get(f)]
 
     if not missing:
         return {
