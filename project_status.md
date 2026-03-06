@@ -12,7 +12,7 @@
 | M0 — Documentação e Planejamento | Fev/2026 | Arquitetura, tese, casos de uso, roadmap | 🟡 Em andamento |
 | M1 — Fundação | Semanas 1–3 | Infra, Evolution API (WhatsApp), cadastro de carteira | ✅ Concluído (código) |
 | M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | ✅ Validado E2E com Docker + Gemini (aguarda chip WhatsApp) |
-| M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | ⬜ Não iniciado |
+| M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | 🟡 Em andamento |
 | M4 — Agente de Renovação | Semanas 7–10 | Régua de renovação proativa + qualificação de lead para vendedor | ✅ Concluído (código) |
 | **MVP** | **Mês 3** | **Três agentes em produção, primeira corretora pagante** | ⬜ Não iniciado |
 | **V1** | **Mês 6** | **Grafo de memória por cliente, relacionamento proativo** | ⬜ Não iniciado |
@@ -102,16 +102,26 @@
 
 ## M3 — Agente de Onboarding (Semanas 5–8)
 
+### Decisões de design (mar/2026)
+
+- **Fluxo híbrido (C):** push (corretor inicia com `/cadastrar <número>`) + pull (cliente chega sem cadastro)
+- **Modo push:** bot aborda o cliente proativamente logo após receber o comando do corretor
+- **Novo número + sinistro:** coleta o sinistro normalmente e escala para Lucimara com flag "cliente sem cadastro"
+- **Cancelamento:** `/cancelar <número>` cancela onboarding em andamento
+- **Notificação final:** sempre para `BROKER_NOTIFICATION_PHONE` (sem seller separado no MVP)
+- **Comandos:** reconhecidos apenas quando enviados pelo `BROKER_NOTIFICATION_PHONE`
+
 ### Entregas esperadas
 
-- [ ] Subgraph LangGraph do Agente de Onboarding
-- [ ] Fluxo de coleta de dados do novo cliente via WhatsApp (nome, CPF, veículo, contato)
-- [ ] Cadastro automático de `client` + `policy` no banco a partir da conversa
-- [ ] Tools implementadas: `collect_client_data`, `validate_document`, `register_client`, `register_policy`, `send_welcome_summary`
-- [ ] Orquestrador configurado para rotear WhatsApp → Agente de Onboarding
-- [ ] Notificação ao vendedor ao finalizar cadastro com resumo estruturado
-- [ ] Testes do fluxo completo (carro, moto, residência)
-- [ ] Documentação: `docs/agentes/onboarding.md`
+- [ ] `OnboardingService` com `create_client` e `create_policy` (`services/onboarding_service.py`)
+- [ ] `OnboardingState` (TypedDict) em `agents/onboarding/state.py`
+- [ ] Subgraph LangGraph do Agente de Onboarding (`agents/onboarding/graph.py`, `nodes.py`, `prompts.py`)
+- [ ] Nós implementados: `contact_client` (push), `collect_client`, `collect_policy`, `validate`, `register`, `welcome`, `notify_seller`
+- [ ] Orquestrador: detectar `/cadastrar`, `/cancelar` e intent `"onboarding"` para novo número
+- [ ] Orquestrador: flag "cliente sem cadastro" no roteamento para claims
+- [ ] Webhook conectado ao agente de onboarding E2E
+- [ ] Testes unitários: collect_client, validate, register, notify
+- [ ] Documentação: `docs/agentes/onboarding.md` ✅ (atualizada com decisões)
 
 ---
 

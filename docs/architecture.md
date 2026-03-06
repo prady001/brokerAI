@@ -26,11 +26,13 @@
 
 > **Escopo deste documento:** arquitetura do MVP. Para a visão de produto completa (V1–V4), ver `docs/produto/roadmap.md`.
 
-O sistema MVP é composto por **dois agentes de IA independentes** orquestrados via LangGraph:
+O sistema MVP é composto por **três agentes de IA** orquestrados via LangGraph:
 
 - **Agente de Comissionamento:** acionado por CRON diariamente às 08:00 BRT. Acessa portais de seguradoras (via API REST ou automação Playwright), extrai dados de comissão, emite NFS-e via Focus NFe API e envia resumo consolidado para a corretora via WhatsApp.
 
 - **Agente de Sinistros:** acionado por webhook WhatsApp. Recebe o cliente, coleta dados básicos do sinistro, abre o chamado na seguradora pelo canal adequado (API ou WhatsApp da seguradora) e faz o relay das atualizações até o encerramento. Sinistros graves são escalados imediatamente para humano.
+
+- **Agente de Onboarding:** acionado de duas formas — pelo corretor via comando `/cadastrar <número>` (modo push, proativo) ou pelo próprio cliente ao chegar sem cadastro (modo pull, reativo). Coleta dados pessoais e da apólice via conversa, persiste no banco e notifica o corretor com resumo.
 
 A partir da **V1**, uma terceira camada é adicionada: o **GraphMemoryService**, que constrói e consulta um grafo de conhecimento temporal por cliente usando Graphiti (Zep) + Neo4j. Ver seção 7 para a arquitetura de memória planejada.
 
@@ -86,6 +88,7 @@ A partir da **V1**, uma terceira camada é adicionada: o **GraphMemoryService**,
 │                                                                     │
 │  CommissionService  NfseService  InsurerPortalService               │
 │  ClaimService       NotificationService  PolicyService              │
+│  OnboardingService                                                  │
 └──────────┬──────────────┬──────────────────────────────────────────┘
            │              │
 ┌──────────▼──┐  ┌────────▼──────┐  ┌──────────────────────────────┐

@@ -10,42 +10,77 @@ O objetivo é transformar o onboarding — hoje feito por e-mail, planilha ou di
 
 ## Como funciona
 
-### Fluxo principal
+### Modo de iniciação — Fluxo Híbrido (C)
+
+O onboarding pode ser iniciado de duas formas:
+
+#### Push — Corretor inicia (proativo)
+
+O corretor manda um comando no próprio WhatsApp para o bot:
 
 ```
-Corretor envia link ou inicia conversa com o novo cliente
+Corretor → Bot: "/cadastrar 5517999991234"
+
+Bot → Cliente (5517999991234):
+  "Olá! Sou o assistente da corretora.
+   O Bernardo pediu pra eu fazer seu cadastro. Pode ser agora?"
+```
+
+- Qualquer mensagem vinda do `BROKER_NOTIFICATION_PHONE` com prefixo `/cadastrar <número>` é tratada como comando.
+- O bot aborda o cliente **proativamente** logo após receber o comando.
+- Para cancelar um onboarding em andamento: `/cancelar <número>`.
+
+#### Pull — Cliente chega sozinho (reativo)
+
+```
+Novo número (sem cadastro no banco) → manda mensagem
           │
           ▼
-  Orquestrador detecta intent = "onboarding"
-  (ou cliente é identificado como novo — sem cadastro)
+  Orquestrador: número existe em clients?
+          │
+      NÃO ──► sinaliza "novo cliente"
           │
           ▼
-  collect_client_data
+  LLM classifica intent:
+    "onboarding" → inicia coleta
+    "claim"      → coleta sinistro normalmente
+                   + escala para Lucimara com flag "cliente sem cadastro"
+    "unknown"    → resposta padrão + notifica corretor
+```
+
+### Fluxo principal (após iniciação)
+
+```
+contact_client  ← apenas no modo push (abordagem proativa)
+          │
+          ▼
+  collect_client
   (nome, CPF, telefone, e-mail)
           │
           ▼
-  collect_policy_data
+  collect_policy
   (seguradora, ramo, produto, item, vigência, número de apólice)
           │
           ▼
-  validate_data
+  validate
   (verifica CPF válido, datas consistentes, campos obrigatórios)
           │
-          ├── dados inválidos → solicita correção ao cliente
+          ├── dados inválidos → solicita correção (máx. 3 tentativas)
+          │                     se persistir → escala para corretor
           │
           └── dados válidos
                     │
                     ▼
-          register_client + register_policy
-          (persiste no banco)
+          register
+          (persiste client + policy no banco)
                     │
                     ▼
-          send_welcome_summary
-          (mensagem de boas-vindas ao cliente + resumo da apólice)
+          welcome
+          (mensagem de boas-vindas ao cliente com resumo da apólice)
                     │
                     ▼
           notify_seller
-          (resumo do novo cliente para o vendedor responsável)
+          (resumo do novo cliente para BROKER_NOTIFICATION_PHONE)
 ```
 
 ### Dados coletados por etapa
@@ -77,12 +112,13 @@ Corretor envia link ou inicia conversa com o novo cliente
 
 | Nó | Responsabilidade |
 |---|---|
-| `collect_client` | Coleta e valida dados pessoais via conversa |
+| `contact_client` | (push only) Envia mensagem proativa ao novo cliente |
+| `collect_client` | Coleta e valida dados pessoais via conversa multi-turn |
 | `collect_policy` | Coleta dados da apólice |
-| `validate` | Valida CPF, datas e campos obrigatórios |
-| `register` | Persiste `client` e `policy` no banco |
+| `validate` | Valida CPF (dígito verificador), datas e campos obrigatórios |
+| `register` | Persiste `client` e `policy` no banco via `OnboardingService` |
 | `welcome` | Envia resumo de boas-vindas ao cliente |
-| `notify_seller` | Envia resumo ao vendedor via WhatsApp |
+| `notify_seller` | Envia resumo ao `BROKER_NOTIFICATION_PHONE` via WhatsApp |
 
 ### Tools implementadas
 
@@ -111,7 +147,8 @@ def validate_data(client_data: dict, policy_data: dict) -> dict:
 @tool
 def register_client(client_data: dict) -> str:
     """
-    Persiste o cliente no banco. Retorna o client_id gerado.
+    Persiste o cliente no banco via OnboardingService.
+    Retorna o client_id gerado.
     """
 
 @tool
@@ -128,11 +165,20 @@ def send_welcome_summary(client_id: str, policy_id: str) -> bool:
     """
 
 @tool
-def notify_seller(seller_phone: str, client_id: str, policy_id: str) -> bool:
+def notify_seller(client_id: str, policy_id: str) -> bool:
     """
-    Envia resumo do novo cliente ao vendedor responsável via WhatsApp.
+    Envia resumo do novo cliente ao BROKER_NOTIFICATION_PHONE via WhatsApp.
     """
 ```
+
+### Comandos do corretor (modo push)
+
+| Comando | Ação |
+|---|---|
+| `/cadastrar <número>` | Inicia onboarding proativo para o número informado |
+| `/cancelar <número>` | Cancela onboarding em andamento para o número informado |
+
+O número deve estar no formato E.164 sem `+` (ex: `5517999991234`). Comandos só são reconhecidos quando enviados pelo `BROKER_NOTIFICATION_PHONE`.
 
 ---
 
@@ -141,15 +187,14 @@ def notify_seller(seller_phone: str, client_id: str, policy_id: str) -> bool:
 ### Variáveis de ambiente
 
 ```env
-# Vendedor padrão quando não informado (telefone WhatsApp)
-ONBOARDING_DEFAULT_SELLER_PHONE=+5517999999999
-
 # Campos obrigatórios para considerar o onboarding completo
 ONBOARDING_REQUIRED_FIELDS=nome,cpf,seguradora,ramo,produto,item,numero_apolice,vigencia_final
 
 # Número de tentativas antes de escalar para corretor em caso de dado inválido
 ONBOARDING_MAX_RETRIES=3
 ```
+
+> **Nota:** a notificação final sempre vai para `BROKER_NOTIFICATION_PHONE` (já configurado no `.env`). Não há `ONBOARDING_DEFAULT_SELLER_PHONE` separado.
 
 ### System prompt do agente
 
