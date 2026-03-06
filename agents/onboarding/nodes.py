@@ -236,10 +236,9 @@ async def collect_policy_node(state: dict) -> dict:
         "start_date": extracted.get("start_date") or prev.get("start_date"),
     }
 
-    missing = list(extracted.get("missing_fields", []))
     error_context = ""
 
-    # Recalcula missing com base no estado consolidado
+    # Recalcula missing com base nos campos obrigatórios
     required = ["insurer", "item_description", "policy_number", "end_date"]
     missing = [f for f in required if not policy_data.get(f)]
 

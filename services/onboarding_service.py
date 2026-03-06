@@ -74,9 +74,12 @@ async def get_or_create_insurer(name: str) -> str:
     Busca seguradora por nome (correspondência parcial, case-insensitive).
     Se não existir, cria um registro mínimo com integration_type='manual'.
     Retorna o UUID como string.
+
+    Nota: carrega todas as seguradoras ativas em memória para o match bidirecional.
+    Aceitável no MVP (dezenas de registros); revisar se a tabela crescer.
     """
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Insurer))
+        result = await session.execute(select(Insurer).where(Insurer.active.is_(True)))
         insurers = result.scalars().all()
         name_lower = name.lower().strip()
         for ins in insurers:
@@ -100,14 +103,14 @@ async def get_or_create_insurer(name: str) -> str:
 
 async def get_client_by_cpf(cpf: str) -> dict | None:
     """Retorna dados básicos do cliente pelo CPF (ignora formatação)."""
-    digits = re.sub(r"\D", "", cpf)
+    formatted = format_cpf(cpf)
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Client))
-        clients = result.scalars().all()
-        for client in clients:
-            stored = re.sub(r"\D", "", str(client.cpf_cnpj or ""))
-            if stored == digits:
-                return {"id": str(client.id), "name": client.full_name}
+        result = await session.execute(
+            select(Client).where(Client.cpf_cnpj == formatted)
+        )
+        client = result.scalar_one_or_none()
+        if client:
+            return {"id": str(client.id), "name": client.full_name}
     return None
 
 

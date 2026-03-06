@@ -215,6 +215,7 @@ async def _handle_broker_cadastrar(target_phone: str) -> None:
         "failed": False,
         "messages": [],
         "status": "",
+        "confirmation_status": "",
     }
 
     final_state = await _onboarding_graph.ainvoke(initial_state)
@@ -274,6 +275,7 @@ async def _start_onboarding_pull(phone: str, text: str) -> None:
         "failed": False,
         "messages": [{"role": "user", "content": text, "ts": datetime.now(UTC).isoformat()}],
         "status": "",
+        "confirmation_status": "",
     }
 
     final_state = await _onboarding_graph.ainvoke(initial_state)

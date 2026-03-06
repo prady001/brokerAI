@@ -1,7 +1,19 @@
 """
 State schema do Agente de Onboarding.
 """
-from typing import TypedDict
+from typing import Literal, TypedDict
+
+OnboardingStatus = Literal[
+    "collecting_client",
+    "collecting_policy",
+    "awaiting_confirmation",
+    "registered",
+    "failed",
+    "cancel",
+    "",
+]
+
+ConfirmationStatus = Literal["confirmed", "rejected", "unclear", ""]
 
 
 class OnboardingState(TypedDict):
@@ -28,5 +40,5 @@ class OnboardingState(TypedDict):
 
     # Conversa
     messages: list[dict]        # histórico: [{role, content, ts?}]
-    status: str                 # collecting_client | collecting_policy | awaiting_confirmation | registered | failed | cancel
-    confirmation_status: str    # confirmed | rejected | unclear
+    status: OnboardingStatus
+    confirmation_status: ConfirmationStatus
