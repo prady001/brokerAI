@@ -324,17 +324,15 @@ async def handle_confirmation_node(state: dict) -> dict:
     user_messages = [m for m in messages if m.get("role") == "user"]
     latest = user_messages[-1].get("content", "").lower().strip() if user_messages else ""
 
-    confirmed_words = {
-        "sim", "s", "confirmo", "pode", "ok", "certo", "isso", "correto", "tudo certo", "cadastra",
-    }
-    rejected_words = {  # noqa: E501
-        "não", "nao", "n", "errado", "errada", "corrigir", "mudar", "alterar", "refazer",
-    }
+    # Palavras inteiras para evitar falsos positivos de substring (ex: "n" em "nenhum")
+    words = set(latest.split())
+    confirmed_words = {"sim", "confirmo", "pode", "ok", "certo", "isso", "correto", "cadastra"}
+    rejected_words = {"não", "nao", "errado", "errada", "corrigir", "mudar", "alterar", "refazer"}
 
-    if any(w in latest for w in confirmed_words):
+    if words & confirmed_words or "tudo certo" in latest:
         return {"confirmation_status": "confirmed"}
 
-    if any(w in latest for w in rejected_words):
+    if words & rejected_words:
         msg = "Tudo bem! Vamos recomeçar a coleta. Pode me confirmar seu nome completo?"
         await notification_service.send_whatsapp_message(client_phone, msg)
         return {
@@ -367,66 +365,63 @@ def route_confirmation(state: dict) -> str:
 async def register_node(state: dict) -> dict:
     """
     Cria o cliente e a apólice no banco de dados.
-    Em caso de falha: incrementa retry_count. Se >= _MAX_RETRIES, escala para corretor.
+    Tenta até _MAX_RETRIES vezes internamente antes de sinalizar falha.
     """
     client_phone = state.get("client_phone", "")
     client_data = state.get("client_data", {})
     policy_data = state.get("policy_data", {})
-    retry_count = state.get("retry_count", 0)
 
-    try:
-        # Cria / busca seguradora
-        insurer_id = await get_or_create_insurer(policy_data.get("insurer", "Não informada"))
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            # Cria / busca seguradora
+            insurer_id = await get_or_create_insurer(policy_data.get("insurer", "Não informada"))
 
-        # Cria cliente (retorna existente se CPF já cadastrado)
-        client_id = await create_client(
-            full_name=client_data.get("full_name", ""),
-            cpf_cnpj=client_data.get("cpf", ""),
-            phone_whatsapp=client_phone,
-            email=client_data.get("email"),
-        )
+            # Cria cliente (retorna existente se CPF já cadastrado)
+            client_id = await create_client(
+                full_name=client_data.get("full_name", ""),
+                cpf_cnpj=client_data.get("cpf", ""),
+                phone_whatsapp=client_phone,
+                email=client_data.get("email"),
+            )
 
-        # Cria apólice
-        policy_id = await create_policy(
-            client_id=client_id,
-            insurer_id=insurer_id,
-            policy_number=policy_data.get("policy_number", ""),
-            policy_type=policy_data.get("policy_type", "auto"),
-            item_description=policy_data.get("item_description", ""),
-            end_date=policy_data.get("end_date", ""),
-            start_date=policy_data.get("start_date"),
-            seller_phone=settings.broker_notification_phone,
-        )
+            # Cria apólice
+            policy_id = await create_policy(
+                client_id=client_id,
+                insurer_id=insurer_id,
+                policy_number=policy_data.get("policy_number", ""),
+                policy_type=policy_data.get("policy_type", "auto"),
+                item_description=policy_data.get("item_description", ""),
+                end_date=policy_data.get("end_date", ""),
+                start_date=policy_data.get("start_date"),
+                seller_phone=settings.broker_notification_phone,
+            )
 
-        logger.info(
-            "Onboarding concluído: client_id=%s policy_id=%s phone=%s",
-            client_id, policy_id, client_phone,
-        )
-        return {
-            "client_id": client_id,
-            "policy_id": policy_id,
-            "registered": True,
-            "status": "registered",
-        }
-
-    except Exception as exc:
-        logger.error("Erro ao registrar cliente/apólice para %s: %s", client_phone, exc)
-        new_retry = retry_count + 1
-        if new_retry >= _MAX_RETRIES:
+            logger.info(
+                "Onboarding concluído: client_id=%s policy_id=%s phone=%s",
+                client_id, policy_id, client_phone,
+            )
             return {
-                "retry_count": new_retry,
-                "failed": True,
-                "status": "failed",
+                "client_id": client_id,
+                "policy_id": policy_id,
+                "registered": True,
+                "status": "registered",
             }
-        return {"retry_count": new_retry}
+
+        except Exception as exc:
+            last_exc = exc
+            logger.warning(
+                "Tentativa %d/%d falhou para %s: %s", attempt + 1, _MAX_RETRIES, client_phone, exc
+            )
+
+    logger.error("Todas as tentativas falharam para %s: %s", client_phone, last_exc)
+    return {"failed": True, "status": "failed"}
 
 
 def route_after_register(state: dict) -> str:
-    if state.get("failed"):
-        return "escalate"
     if state.get("registered"):
         return "welcome"
-    return "escalate"  # fallback
+    return "escalate"
 
 
 # ---------------------------------------------------------------------------
