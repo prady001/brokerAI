@@ -1,7 +1,7 @@
 # Status do Projeto — brokerAI
 
-> **Última atualização:** Março de 2026
-> **Status geral:** 🟡 Em desenvolvimento
+> **Última atualização:** Março de 2026 (sessão 06/03/2026)
+> **Status geral:** 🟡 Em desenvolvimento — código MVP completo, aguarda chip WhatsApp e infra de produção
 
 ---
 
@@ -12,7 +12,7 @@
 | M0 — Documentação e Planejamento | Fev/2026 | Arquitetura, tese, casos de uso, roadmap | 🟡 Em andamento |
 | M1 — Fundação | Semanas 1–3 | Infra, Evolution API (WhatsApp), cadastro de carteira | ✅ Concluído (código) |
 | M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | ✅ Validado E2E com Docker + Gemini (aguarda chip WhatsApp) |
-| M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | ✅ Concluído (código) |
+| M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | ✅ Mergeado em main |
 | M4 — Agente de Renovação | Semanas 7–10 | Régua de renovação proativa + qualificação de lead para vendedor | ✅ Concluído (código) |
 | **MVP** | **Mês 3** | **Três agentes em produção, primeira corretora pagante** | ⬜ Não iniciado |
 | **V1** | **Mês 6** | **Grafo de memória por cliente, relacionamento proativo** | ⬜ Não iniciado |
@@ -121,7 +121,17 @@
 - [x] Orquestrador: estado de onboarding no Redis (load/save/delete)
 - [x] Webhook conectado ao agente de onboarding E2E (push + pull + comandos do corretor)
 - [x] Testes unitários: collect_client, collect_policy, confirm, handle_confirmation, register, notify, cancel
-- [x] Documentação: `docs/agentes/onboarding.md` ✅ (atualizada com decisões)
+- [x] Documentação: `docs/agentes/onboarding.md` ✅ (atualizada com implementação real)
+
+### Revisão de código (pós-merge, 06/03/2026)
+
+Correções aplicadas após code review do PR #63:
+
+- [x] `get_client_by_cpf`: substituído full table scan por `WHERE cpf_cnpj = format_cpf(cpf)` (usa índice `unique`)
+- [x] `get_or_create_insurer`: filtro `WHERE active = true`; comentário documenta limitação de scan no MVP
+- [x] `state.py`: `status` e `confirmation_status` tipados como `Literal` em vez de `str`
+- [x] Estados iniciais (push e pull): `confirmation_status: ""` adicionado para conformidade com `TypedDict`
+- [x] `collect_policy_node`: removida variável morta `missing = list(extracted.get("missing_fields", []))`
 
 ---
 

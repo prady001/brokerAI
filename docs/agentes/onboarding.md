@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Conduzir o cadastro de um novo cliente via WhatsApp do início ao fim, sem que o corretor precise preencher nada manualmente. O agente coleta dados do cliente e da apólice por conversa, registra no banco e entrega ao vendedor um perfil completo pronto para operação.
+Conduzir o cadastro de um novo cliente via WhatsApp do início ao fim, sem que o corretor precise preencher nada manualmente. O agente coleta dados do cliente e da apólice por conversa, valida as informações, registra no banco e entrega ao corretor uma notificação com o perfil completo.
 
 O objetivo é transformar o onboarding — hoje feito por e-mail, planilha ou digitação manual — em uma conversa de 10 a 15 minutos no WhatsApp.
 
@@ -10,20 +10,21 @@ O objetivo é transformar o onboarding — hoje feito por e-mail, planilha ou di
 
 ## Como funciona
 
-### Modo de iniciação — Fluxo Híbrido (C)
+### Modo de iniciação — Fluxo Híbrido
 
 O onboarding pode ser iniciado de duas formas:
 
 #### Push — Corretor inicia (proativo)
 
-O corretor manda um comando no próprio WhatsApp para o bot:
+O corretor envia um comando no próprio WhatsApp para o bot:
 
 ```
 Corretor → Bot: "/cadastrar 5517999991234"
 
 Bot → Cliente (5517999991234):
   "Olá! Sou o assistente da corretora.
-   O Bernardo pediu pra eu fazer seu cadastro. Pode ser agora?"
+   O seu corretor pediu pra eu fazer seu cadastro rapidinho aqui no WhatsApp. 😊
+   Pode me confirmar seu nome completo para começarmos?"
 ```
 
 - Qualquer mensagem vinda do `BROKER_NOTIFICATION_PHONE` com prefixo `/cadastrar <número>` é tratada como comando.
@@ -38,50 +39,53 @@ Novo número (sem cadastro no banco) → manda mensagem
           ▼
   Orquestrador: número existe em clients?
           │
-      NÃO ──► sinaliza "novo cliente"
-          │
-          ▼
-  LLM classifica intent:
-    "onboarding" → inicia coleta
-    "claim"      → coleta sinistro normalmente
-                   + escala para Lucimara com flag "cliente sem cadastro"
-    "unknown"    → resposta padrão + notifica corretor
+      NÃO ──► LLM classifica intent:
+                "onboarding" → inicia coleta (pull mode)
+                "claim"      → coleta sinistro normalmente
+                               + escala para corretor com flag "cliente sem cadastro"
+                "unknown"    → resposta padrão + notifica corretor
 ```
 
-### Fluxo principal (após iniciação)
+### Fluxo principal (grafo LangGraph)
 
 ```
-contact_client  ← apenas no modo push (abordagem proativa)
-          │
-          ▼
-  collect_client
-  (nome, CPF, telefone, e-mail)
-          │
-          ▼
-  collect_policy
-  (seguradora, ramo, produto, item, vigência, número de apólice)
-          │
-          ▼
-  validate
-  (verifica CPF válido, datas consistentes, campos obrigatórios)
-          │
-          ├── dados inválidos → solicita correção (máx. 3 tentativas)
-          │                     se persistir → escala para corretor
-          │
-          └── dados válidos
-                    │
-                    ▼
-          register
-          (persiste client + policy no banco)
-                    │
-                    ▼
-          welcome
-          (mensagem de boas-vindas ao cliente com resumo da apólice)
-                    │
-                    ▼
-          notify_seller
-          (resumo do novo cliente para BROKER_NOTIFICATION_PHONE)
+entry_router
+    │
+    ├── push_mode=True, status="" ──► contact_client ──► END (aguarda resposta)
+    │
+    └── demais casos ──► collect_client (multi-turn)
+                                │
+                    client_data_complete=True
+                                │
+                                ▼
+                        collect_policy (multi-turn)
+                                │
+                    policy_data_complete=True
+                                │
+                                ▼
+                            confirm
+                    (envia resumo, aguarda confirmação)
+                                │
+                                ▼
+                      handle_confirmation
+                          │         │         │
+                      "sim"      "não"    ambíguo
+                          │         │         │
+                       register  reset      END (pede esclarecimento)
+                          │      coleta
+                  registered=True │
+                          │       │
+                        welcome   END
+                          │
+                     notify_seller
+                          │
+                         END
+
+    register (falha após 3 tentativas) ──► escalate ──► END
+    cancelamento ──► cancel_onboarding ──► END
 ```
+
+O estado persiste em Redis (TTL 30 dias) entre cada acionamento do webhook. O grafo é retomado a partir do `status` atual quando o cliente responde.
 
 ### Dados coletados por etapa
 
@@ -89,89 +93,67 @@ contact_client  ← apenas no modo push (abordagem proativa)
 
 | Campo | Obrigatório | Observação |
 |---|---|---|
-| Nome completo | ✅ | |
+| Nome completo | ✅ | Normalizado para Title Case |
 | CPF | ✅ | Validado com algoritmo de dígito verificador |
-| Telefone WhatsApp | ✅ | Já disponível pela conversa |
+| Telefone WhatsApp | ✅ | Extraído automaticamente do evento do webhook |
 | E-mail | ⬜ | Opcional no MVP |
-| Data de nascimento | ⬜ | Coletado se disponível |
 
 **Etapa 2 — Dados da apólice**
 
 | Campo | Obrigatório | Observação |
 |---|---|---|
-| Seguradora | ✅ | Ex: Porto Seguro, Allianz |
-| Ramo | ✅ | Automóvel, Residência, Vida, etc. |
-| Produto | ✅ | Carro, Moto, Carta Verde, etc. |
-| Item (descrição) | ✅ | Ex: "Toyota Yaris 1.3 Flex / Placa ABC1234" |
-| Número da apólice | ✅ | |
-| Vigência início | ✅ | |
-| Vigência final | ✅ | Gatilho para o agente de renovação |
-| Vendedor responsável | ✅ | Pré-configurado ou perguntado |
+| Seguradora | ✅ | Buscada/criada em `insurers` via `get_or_create_insurer` |
+| Ramo / Tipo | ⬜ | Default `auto` se não informado |
+| Item segurado | ✅ | Ex: "Toyota Yaris 1.3 Flex / ABC1234" |
+| Número da apólice | ✅ | Único no banco (`unique=True`) |
+| Vencimento (end_date) | ✅ | Aceita DD/MM/YYYY ou YYYY-MM-DD |
+| Início (start_date) | ⬜ | Default: data atual |
 
 ### Nós do grafo LangGraph
 
 | Nó | Responsabilidade |
 |---|---|
-| `contact_client` | (push only) Envia mensagem proativa ao novo cliente |
-| `collect_client` | Coleta e valida dados pessoais via conversa multi-turn |
-| `collect_policy` | Coleta dados da apólice |
-| `validate` | Valida CPF (dígito verificador), datas e campos obrigatórios |
-| `register` | Persiste `client` e `policy` no banco via `OnboardingService` |
-| `welcome` | Envia resumo de boas-vindas ao cliente |
-| `notify_seller` | Envia resumo ao `BROKER_NOTIFICATION_PHONE` via WhatsApp |
+| `entry_router` | Não-op; roteamento via `route_entry` com base no `status` atual |
+| `contact_client` | (push only) Envia saudação proativa ao cliente e pede o nome |
+| `collect_client` | Extrai nome e CPF das mensagens via LLM; valida CPF; pergunta campos faltantes |
+| `collect_policy` | Extrai dados da apólice via LLM; pergunta campos obrigatórios faltantes |
+| `confirm` | Envia resumo formatado dos dados coletados e aguarda confirmação |
+| `handle_confirmation` | Processa "sim" / "não" / ambíguo; reseta estado em caso de rejeição |
+| `register` | Cria cliente e apólice no banco (até 3 tentativas internas) |
+| `welcome` | Envia mensagem de boas-vindas ao cliente após cadastro |
+| `notify_seller` | Envia resumo completo do novo cadastro ao `BROKER_NOTIFICATION_PHONE` |
+| `escalate` | Notifica corretor e informa cliente que o cadastro manual será necessário |
+| `cancel_onboarding` | Notifica cliente do cancelamento; seta `failed=True` |
 
-### Tools implementadas
+### Detecção de confirmação
+
+O `handle_confirmation_node` usa matching por palavras inteiras (set intersection) para evitar falsos positivos:
 
 ```python
-@tool
-def collect_client_data(conversation_id: str) -> dict:
-    """
-    Coleta nome, CPF, telefone e e-mail do cliente via conversa.
-    Retorna os dados estruturados.
-    """
-
-@tool
-def collect_policy_data(conversation_id: str, client_id: str) -> dict:
-    """
-    Coleta seguradora, ramo, produto, item, número de apólice e vigência.
-    Retorna os dados estruturados.
-    """
-
-@tool
-def validate_data(client_data: dict, policy_data: dict) -> dict:
-    """
-    Valida CPF (dígito verificador), datas de vigência e campos obrigatórios.
-    Retorna: { valid: bool, errors: list[str] }
-    """
-
-@tool
-def register_client(client_data: dict) -> str:
-    """
-    Persiste o cliente no banco via OnboardingService.
-    Retorna o client_id gerado.
-    """
-
-@tool
-def register_policy(policy_data: dict, client_id: str) -> str:
-    """
-    Persiste a apólice no banco vinculada ao cliente.
-    Retorna o policy_id gerado.
-    """
-
-@tool
-def send_welcome_summary(client_id: str, policy_id: str) -> bool:
-    """
-    Envia mensagem de boas-vindas ao cliente com resumo da apólice cadastrada.
-    """
-
-@tool
-def notify_seller(client_id: str, policy_id: str) -> bool:
-    """
-    Envia resumo do novo cliente ao BROKER_NOTIFICATION_PHONE via WhatsApp.
-    """
+confirmed_words = {"sim", "confirmo", "pode", "ok", "certo", "isso", "correto", "cadastra"}
+rejected_words  = {"não", "nao", "errado", "errada", "corrigir", "mudar", "alterar", "refazer"}
+# "tudo certo" capturado como frase composta
 ```
 
-### Comandos do corretor (modo push)
+Resposta ambígua → pede esclarecimento e aguarda próxima mensagem sem avançar no grafo.
+
+---
+
+## Configuração
+
+### Variáveis de ambiente relevantes
+
+```env
+# Número do corretor — único autorizado a emitir comandos /cadastrar e /cancelar
+BROKER_NOTIFICATION_PHONE=5517999999999
+
+# Máximo de tentativas de registro no banco (hardcoded como _MAX_RETRIES = 3)
+# Sem variável de ambiente — alterar em agents/onboarding/nodes.py se necessário
+```
+
+> **Nota:** não existe `ONBOARDING_REQUIRED_FIELDS` nem `ONBOARDING_DEFAULT_SELLER_PHONE` como variáveis de ambiente. Os campos obrigatórios estão hardcoded nos prompts e na lógica de `collect_policy_node`. A notificação final sempre vai para `BROKER_NOTIFICATION_PHONE`.
+
+### Comandos do corretor
 
 | Comando | Ação |
 |---|---|
@@ -180,135 +162,108 @@ def notify_seller(client_id: str, policy_id: str) -> bool:
 
 O número deve estar no formato E.164 sem `+` (ex: `5517999991234`). Comandos só são reconhecidos quando enviados pelo `BROKER_NOTIFICATION_PHONE`.
 
----
+### Estado no Redis
 
-## Configuração
+Chave: `onboarding_conversation:{phone}` — TTL 30 dias.
 
-### Variáveis de ambiente
-
-```env
-# Campos obrigatórios para considerar o onboarding completo
-ONBOARDING_REQUIRED_FIELDS=nome,cpf,seguradora,ramo,produto,item,numero_apolice,vigencia_final
-
-# Número de tentativas antes de escalar para corretor em caso de dado inválido
-ONBOARDING_MAX_RETRIES=3
-```
-
-> **Nota:** a notificação final sempre vai para `BROKER_NOTIFICATION_PHONE` (já configurado no `.env`). Não há `ONBOARDING_DEFAULT_SELLER_PHONE` separado.
-
-### System prompt do agente
-
-```
-Você é o assistente da [Nome da Corretora] responsável por cadastrar novos clientes.
-Seu objetivo é fazer o cadastro de forma agradável, como uma conversa, não como um formulário.
-
-COMPORTAMENTO:
-- Peça os dados um a um, de forma natural. Não liste tudo de uma vez.
-- Se o cliente errar um dado (ex: CPF inválido), explique o erro de forma gentil e peça novamente.
-- Confirme os dados ao final antes de cadastrar: repita tudo e peça uma confirmação.
-- Após cadastrar, explique o que acontece a seguir (o corretor vai entrar em contato).
-
-AÇÕES PROIBIDAS:
-- Não cadastre sem confirmação explícita do cliente.
-- Não prometa coberturas ou condições da apólice — apenas registre o que o cliente informa.
-- Não peça dados sensíveis além do necessário (sem dados de cartão, conta bancária, etc.).
-- Não se identifique como IA a menos que o cliente pergunte diretamente.
-```
+O estado é removido automaticamente quando `registered=True` ou `failed=True` (cadastro concluído, cancelado ou após falha com escalada).
 
 ---
 
 ## Exemplos
 
-### Exemplo 1 — Onboarding completo de novo segurado (automóvel)
+### Exemplo 1 — Onboarding completo via push
 
 ```
-Corretor: [envia link para o cliente]
-          "Oi Alessandra! Te passei para o nosso assistente,
-           ele vai fazer seu cadastro rapidinho. 😊"
+Corretor → Bot: /cadastrar 5517999991234
 
-Agente: Olá, Alessandra! Vou fazer seu cadastro aqui na corretora.
-        Pode me confirmar seu nome completo?
+Bot → Cliente:
+  "Olá! Sou o assistente da corretora. O seu corretor pediu pra eu fazer
+   seu cadastro rapidinho aqui no WhatsApp. 😊
+   Pode me confirmar seu nome completo para começarmos?"
 
-Cliente: Alessandra Orlandi Camargo
+Cliente: João Silva
 
-Agente: Ótimo! E seu CPF?
+Bot: "Pode me informar seu CPF?"
 
-Cliente: 123.456.789-00
+Cliente: 529.982.247-25
 
-Agente: Perfeito. Agora me conta sobre o seguro:
-        qual é a seguradora e o veículo segurado?
+Bot: "Agora me fale sobre o seguro — qual é a seguradora?"
 
-Cliente: Ezze Seguros, Honda HR-V, placa GHG1590
+Cliente: Porto Seguro, apólice 12345, Toyota Yaris ABC1234, vence 31/12/2026
 
-Agente: Ótimo! Qual o número da apólice e a data de vencimento?
+Bot: "Perfeito! Vou confirmar os dados antes de finalizar o cadastro:
 
-Cliente: Apólice 987654, vence em 16/08/2026
+     👤 Nome: João Silva
+     📄 CPF: 529.982.247-25
+     🏢 Seguradora: Porto Seguro
+     📋 Apólice: 12345
+     🚗 Item segurado: Toyota Yaris ABC1234
+     📅 Vencimento: 31/12/2026
 
-Agente: Vou confirmar tudo antes de finalizar:
+     Está tudo correto? Responda *sim* para confirmar ou *não* para corrigir."
 
-        👤 Cliente: Alessandra Orlandi Camargo
-        📄 CPF: 123.456.789-00
-        📱 WhatsApp: (17) 98765-4321
-        🚗 Veículo: Honda HR-V | GHG1590
-        🏢 Seguradora: Ezze Seguros
-        📋 Apólice: 987654
-        📅 Vencimento: 16/08/2026
+Cliente: sim
 
-        Está tudo certo?
+Bot → Cliente: "Cadastro realizado com sucesso! ✅
+   Seus dados estão registrados e você já pode contar com nosso atendimento via WhatsApp.
+   Qualquer dúvida sobre o seguro, é só chamar aqui! 😊"
 
-Cliente: Sim, pode cadastrar!
-
-Agente: Feito! Seu cadastro está completo. ✅
-        O Bernardo vai entrar em contato para confirmar os detalhes
-        e te explicar como funciona o atendimento.
-        Qualquer dúvida sobre o seguro, pode me chamar aqui!
-
-[Notificação ao vendedor Bernardo]:
-✅ NOVO CLIENTE CADASTRADO
-Nome: Alessandra Orlandi Camargo
-CPF: 123.456.789-00 | WhatsApp: (17) 98765-4321
-Veículo: Honda HR-V | GHG1590 | Ezze Seguros
-Apólice: 987654 | Vence: 16/08/2026
-Cadastrado em: 16/08/2025 às 14h22
+Bot → Corretor: "✅ NOVO CLIENTE CADASTRADO
+   👤 Nome: João Silva | 📄 CPF: 529.982.247-25
+   📱 WhatsApp: 5517999991234
+   🏢 Porto Seguro | 📋 12345 | 🚗 Toyota Yaris ABC1234
+   📅 Vencimento: 31/12/2026
+   Cadastrado em: 31/03/2026 às 14h22"
 ```
 
 ### Exemplo 2 — CPF inválido, correção solicitada
 
 ```
-Agente: E seu CPF?
+Cliente: Meu CPF é 111.111.111-11
 
-Cliente: 111.111.111-11
+Bot: "Hmm, esse CPF parece inválido — pode ter sido um erro de digitação.
+     Consegue conferir e informar novamente?"
 
-Agente: Hmm, esse CPF não parece válido — pode ter sido um erro de digitação.
-        Consegue confirmar o número novamente?
+Cliente: Desculpa! É 529.982.247-25
 
-Cliente: Ah desculpa! É 321.654.987-00
-
-Agente: Esse está correto! Seguindo...
+Bot: [prossegue para próxima pergunta]
 ```
 
-### Exemplo 3 — Dados incompletos, escala para corretor
+### Exemplo 3 — Rejeição na confirmação
 
 ```
-[Após 3 tentativas sem conseguir o número da apólice]
+Bot: "Está tudo correto? Responda *sim* para confirmar ou *não* para corrigir."
 
-Agente: Não consegui o número da apólice ainda — sem problema!
-        Vou avisar o Bernardo para te ajudar a localizar essa informação.
+Cliente: não, o número da apólice está errado
 
-[Notificação ao vendedor]:
-⚠️ ONBOARDING INCOMPLETO — AÇÃO NECESSÁRIA
-Cliente: Carlos Felipe de Carvalho | (17) 97654-3210
-Dados faltantes: número da apólice (Suhai | Moto Suzuki GSX 650F)
-Dados coletados: nome, CPF, veículo, seguradora
-Ação: contatar cliente para coletar o número da apólice e finalizar cadastro.
+Bot: "Tudo bem! Vamos recomeçar a coleta. Pode me confirmar seu nome completo?"
+
+[Reinicia collect_client com dados zerados]
+```
+
+### Exemplo 4 — Falha após retries, escalada ao corretor
+
+```
+[Banco de dados indisponível — 3 tentativas falham]
+
+Bot → Cliente: "Não conseguimos concluir seu cadastro automaticamente. 😔
+   Um dos nossos atendentes vai entrar em contato com você em breve para finalizar.
+   Obrigado pela paciência!"
+
+Bot → Corretor: "⚠️ ONBOARDING INCOMPLETO — AÇÃO NECESSÁRIA
+   📱 Cliente: 5517999991234
+   ❌ Motivo: Falha no cadastro automático após múltiplas tentativas.
+   Por favor, entre em contato para finalizar o cadastro manualmente."
 ```
 
 ---
 
 ## Limitações conhecidas
 
-- **Sem OCR no MVP:** o cliente não pode enviar foto do documento para extração automática de dados. No MVP todos os dados são coletados por conversa. OCR (Mistral/Textract) é planejado para V1.
+- **Sem OCR no MVP:** o cliente não pode enviar foto do documento para extração automática de dados. Todos os dados são coletados por conversa. OCR (Mistral/Textract) é planejado para V1.
 - **Sem validação de apólice na seguradora:** o agente registra o que o cliente informa, sem verificar se a apólice realmente existe no sistema da seguradora. Validação cruzada é planejada para V1.
-- **Uma apólice por onboarding:** o fluxo cadastra uma apólice por sessão. Clientes com múltiplas apólices precisam iniciar um novo onboarding para cada uma.
-- **Ramo limitado ao MVP:** o fluxo é otimizado para automóvel (carro e moto). Residência e seguro de vida são suportados mas sem perguntas específicas do ramo — apenas dados gerais.
-- **Corretor pré-definido:** o agente usa o vendedor padrão configurado em `ONBOARDING_DEFAULT_SELLER_PHONE` a menos que o corretor informe outro no início da conversa.
+- **Uma apólice por onboarding:** o fluxo cadastra uma apólice por sessão. Clientes com múltiplas apólices precisam de um novo onboarding para cada uma.
+- **Ramo limitado ao MVP:** o fluxo é otimizado para automóvel. Residência, vida e outros ramos são suportados mas sem perguntas específicas do ramo — apenas dados gerais.
+- **Seguradora nova cria registro mínimo:** se a seguradora informada não existir no banco, um registro com `integration_type="manual"` é criado automaticamente. O corretor deve revisar e configurar a integração posteriormente.
+- **Sem retomada de onboarding após `failed`:** se o onboarding foi cancelado ou falhou, um novo `/cadastrar` reinicia do zero — não há retomada de onde parou.
