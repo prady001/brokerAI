@@ -8,6 +8,7 @@ import logging
 import redis.asyncio as aioredis
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from agents.llm import get_llm as _get_llm_factory
 from agents.orchestrator.prompts import INTENT_DETECTION_PROMPT
 from models.config import settings
 from services import notification_service
@@ -26,15 +27,16 @@ def _get_redis() -> aioredis.Redis:
     return _redis_client
 
 
-from agents.llm import get_llm as _get_llm_factory
-
-
 def _get_llm():
     return _get_llm_factory(max_tokens=256)
 
 
 def _conversation_key(phone: str) -> str:
     return f"claim_conversation:{phone}"
+
+
+def _onboarding_key(phone: str) -> str:
+    return f"onboarding_conversation:{phone}"
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +67,36 @@ async def delete_conversation_state(phone: str) -> None:
     """Remove o estado da conversa do Redis (sinistro encerrado)."""
     redis = _get_redis()
     await redis.delete(_conversation_key(phone))
+
+
+# ---------------------------------------------------------------------------
+# Gestão de estado de onboarding no Redis
+# ---------------------------------------------------------------------------
+
+async def load_onboarding_state(phone: str) -> dict | None:
+    """Carrega estado de onboarding ativo do Redis. Retorna None se não existir."""
+    redis = _get_redis()
+    raw = await redis.get(_onboarding_key(phone))
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("Estado de onboarding corrompido no Redis para %s — removendo", phone)
+        await redis.delete(_onboarding_key(phone))
+        return None
+
+
+async def save_onboarding_state(phone: str, state: dict) -> None:
+    """Persiste o estado de onboarding no Redis (TTL: 30 dias)."""
+    redis = _get_redis()
+    await redis.set(_onboarding_key(phone), json.dumps(state), ex=_CONVERSATION_TTL)
+
+
+async def delete_onboarding_state(phone: str) -> None:
+    """Remove o estado de onboarding do Redis (cadastro concluído ou cancelado)."""
+    redis = _get_redis()
+    await redis.delete(_onboarding_key(phone))
 
 
 # ---------------------------------------------------------------------------

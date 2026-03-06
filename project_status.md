@@ -12,7 +12,7 @@
 | M0 — Documentação e Planejamento | Fev/2026 | Arquitetura, tese, casos de uso, roadmap | 🟡 Em andamento |
 | M1 — Fundação | Semanas 1–3 | Infra, Evolution API (WhatsApp), cadastro de carteira | ✅ Concluído (código) |
 | M2 — Agente de Sinistro Simples E2E | Semanas 3–6 | Sinistro simples do FNOL ao encerramento via WhatsApp | ✅ Validado E2E com Docker + Gemini (aguarda chip WhatsApp) |
-| M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | 🟡 Em andamento |
+| M3 — Agente de Onboarding | Semanas 5–8 | Onboarding de novo cliente via WhatsApp + cadastro de apólice | ✅ Concluído (código) |
 | M4 — Agente de Renovação | Semanas 7–10 | Régua de renovação proativa + qualificação de lead para vendedor | ✅ Concluído (código) |
 | **MVP** | **Mês 3** | **Três agentes em produção, primeira corretora pagante** | ⬜ Não iniciado |
 | **V1** | **Mês 6** | **Grafo de memória por cliente, relacionamento proativo** | ⬜ Não iniciado |
@@ -113,15 +113,15 @@
 
 ### Entregas esperadas
 
-- [ ] `OnboardingService` com `create_client` e `create_policy` (`services/onboarding_service.py`)
-- [ ] `OnboardingState` (TypedDict) em `agents/onboarding/state.py`
-- [ ] Subgraph LangGraph do Agente de Onboarding (`agents/onboarding/graph.py`, `nodes.py`, `prompts.py`)
-- [ ] Nós implementados: `contact_client` (push), `collect_client`, `collect_policy`, `validate`, `register`, `welcome`, `notify_seller`
-- [ ] Orquestrador: detectar `/cadastrar`, `/cancelar` e intent `"onboarding"` para novo número
-- [ ] Orquestrador: flag "cliente sem cadastro" no roteamento para claims
-- [ ] Webhook conectado ao agente de onboarding E2E
-- [ ] Testes unitários: collect_client, validate, register, notify
-- [ ] Documentação: `docs/agentes/onboarding.md` ✅ (atualizada com decisões)
+- [x] `OnboardingService` com `create_client` e `create_policy` (`services/onboarding_service.py`)
+- [x] `OnboardingState` (TypedDict) em `agents/onboarding/state.py`
+- [x] Subgraph LangGraph do Agente de Onboarding (`agents/onboarding/graph.py`, `nodes.py`, `prompts.py`)
+- [x] Nós implementados: `contact_client` (push), `collect_client`, `collect_policy`, `confirm`, `handle_confirmation`, `register`, `welcome`, `notify_seller`, `escalate`, `cancel_onboarding`
+- [x] Orquestrador: detectar `/cadastrar`, `/cancelar` e intent `"onboarding"` para novo número
+- [x] Orquestrador: estado de onboarding no Redis (load/save/delete)
+- [x] Webhook conectado ao agente de onboarding E2E (push + pull + comandos do corretor)
+- [x] Testes unitários: collect_client, collect_policy, confirm, handle_confirmation, register, notify, cancel
+- [x] Documentação: `docs/agentes/onboarding.md` ✅ (atualizada com decisões)
 
 ---
 
