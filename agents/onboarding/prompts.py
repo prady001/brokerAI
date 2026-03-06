@@ -91,14 +91,6 @@ Gere apenas a mensagem de pergunta, sem explicações adicionais. Em português 
 # Templates de mensagem
 # ---------------------------------------------------------------------------
 
-PUSH_GREETING = """Olá! Sou o assistente da corretora. O seu corretor pediu pra eu fazer seu cadastro rapidinho aqui no WhatsApp. 😊
-
-Pode ser agora? Vai levar só alguns minutos!"""
-
-PULL_GREETING = """Olá! Seja bem-vindo(a) à corretora. Vou fazer seu cadastro para que possamos te atender.
-
-Pode me confirmar seu nome completo?"""
-
 CONFIRMATION_MESSAGE = """Perfeito! Vou confirmar os dados antes de finalizar o cadastro:
 
 👤 *Nome:* {full_name}

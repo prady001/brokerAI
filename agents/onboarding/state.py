@@ -28,4 +28,5 @@ class OnboardingState(TypedDict):
 
     # Conversa
     messages: list[dict]        # histórico: [{role, content, ts?}]
-    status: str                 # collecting_client | collecting_policy | validating | registered | failed
+    status: str                 # collecting_client | collecting_policy | awaiting_confirmation | registered | failed | cancel
+    confirmation_status: str    # confirmed | rejected | unclear
