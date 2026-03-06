@@ -14,6 +14,7 @@ Retomada (mensagem de follow-up com sinistro já aberto):
 O estado persiste em Redis entre acionamentos do webhook.
 """
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from agents.claims.nodes import (
     check_updates_node,
@@ -33,7 +34,7 @@ from agents.claims.nodes import (
 from agents.claims.tools import ClaimsState
 
 
-def build_claims_graph() -> StateGraph:
+def build_claims_graph() -> CompiledStateGraph:
     graph = StateGraph(ClaimsState)
 
     graph.add_node("entry_router",    entry_router_node)
