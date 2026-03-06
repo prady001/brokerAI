@@ -182,7 +182,7 @@ class RenewalService:
         result = await self.db.execute(select(Renewal).where(Renewal.id == renewal_id))
         renewal = result.scalar_one()
 
-        now = datetime.now(UTC)
+        now = datetime.now(UTC).replace(tzinfo=None)
         renewal.contact_count = (renewal.contact_count or 0) + 1  # type: ignore[assignment]
         renewal.last_contact_at = now  # type: ignore[assignment]
         renewal.status = "contacted"  # type: ignore[assignment]

@@ -99,7 +99,7 @@ async def create_claim(
             severity=severity,
             status="open",
             description=description,
-            opened_at=datetime.now(UTC),
+            opened_at=datetime.now(UTC).replace(tzinfo=None),
         )
         session.add(claim)
         await session.commit()
@@ -151,6 +151,6 @@ async def close_claim(claim_id: str) -> bool:
         if not claim:
             return False
         claim.status = "closed"  # type: ignore[assignment]
-        claim.closed_at = datetime.now(UTC)  # type: ignore[assignment]
+        claim.closed_at = datetime.now(UTC).replace(tzinfo=None)  # type: ignore[assignment]
         await session.commit()
         return True

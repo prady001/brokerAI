@@ -28,7 +28,7 @@ UTC = timezone.utc
 
 
 def _now() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
