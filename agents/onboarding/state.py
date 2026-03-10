@@ -29,6 +29,7 @@ class OnboardingState(TypedDict):
     # Controle de fluxo
     client_data_complete: bool
     policy_data_complete: bool
+    policy_transition_done: bool  # True após primeira pergunta de apólice (evita repetir transição)
     validation_errors: list[str]
     retry_count: int            # tentativas de correção de dados inválidos
 
