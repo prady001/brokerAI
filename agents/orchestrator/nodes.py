@@ -158,7 +158,9 @@ async def faq_handler_node(state: dict) -> dict:
         "Não acesse dados pessoais do cliente. "
         "Para questões específicas de apólice, peça ao cliente que informe "
         "seu nome ou número de apólice para ser atendido por um corretor. "
-        "Responda sempre em português (pt-BR)."
+        "Responda sempre em português (pt-BR). "
+        "IMPORTANTE: Responda em no máximo 3 frases. Este é um canal de WhatsApp — "
+        "seja direto e informal. Não use listas com bullets nem headers."
     )
     response = await llm.ainvoke([
         SystemMessage(content=system),
@@ -188,10 +190,11 @@ async def human_handoff_node(state: dict) -> dict:
     )
     await notification_service.send_broker_alert(alert)
 
-    # Resposta ao cliente
+    # Resposta ao cliente — personalizada com nome quando disponível
+    greeting_name = f", {client_name}" if client_name and client_name != "Cliente" else ""
     response_msg = (
-        "Olá! Recebi sua mensagem. Um dos nossos atendentes "
-        "vai retornar para você em breve. 😊"
+        f"Olá{greeting_name}! Recebi sua mensagem e um dos nossos atendentes "
+        "vai retornar para você em breve."
     )
     await notification_service.send_whatsapp_message(phone, response_msg)
     return {}

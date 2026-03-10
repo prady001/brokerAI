@@ -1,6 +1,6 @@
 """
 Rota de webhook WhatsApp.
-Recebe eventos do Evolution API e roteia para o agente adequado.
+Recebe eventos da Twilio e roteia para o agente adequado.
 
 Roteamento:
 - Mensagem do corretor com /cadastrar <numero> → inicia onboarding (push)
@@ -15,8 +15,7 @@ import re
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Form, Request, Response
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,7 +33,7 @@ from agents.orchestrator.nodes import (
     save_onboarding_state,
 )
 from agents.renewal.graph import get_renewal_graph
-from api.middleware.auth import verify_evolution_webhook
+from api.middleware.auth import verify_twilio_webhook
 from models.config import settings
 from models.database import Client, get_db
 from services import claim_service, notification_service
@@ -51,81 +50,60 @@ _CMD_CANCELAR  = re.compile(r"^/cancelar\s+(\d+)", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
-# Schemas do payload Evolution API
+# Handler principal (Twilio envia form-urlencoded)
 # ---------------------------------------------------------------------------
 
-class MessageKey(BaseModel):
-    remoteJid: str
-    fromMe: bool
-    id: str
+def _parse_twilio_phone(raw: str) -> str:
+    """Converte 'whatsapp:+5511999999999' → '5511999999999'."""
+    return raw.removeprefix("whatsapp:+").removeprefix("whatsapp:").lstrip("+")
 
-
-class MessageContent(BaseModel):
-    conversation: str | None = None
-
-
-class MessageData(BaseModel):
-    key: MessageKey
-    pushName: str | None = None
-    message: MessageContent | None = None
-    messageType: str | None = None
-    messageTimestamp: int | None = None
-
-
-class EvolutionWebhookPayload(BaseModel):
-    event: str
-    instance: str | None = None
-    data: MessageData | None = None
-
-
-# ---------------------------------------------------------------------------
-# Handler principal
-# ---------------------------------------------------------------------------
 
 @router.post("/webhook/whatsapp")
 async def whatsapp_webhook(
-    payload: EvolutionWebhookPayload,
-    _: None = Depends(verify_evolution_webhook),
+    request: Request,
+    From: str = Form(...),
+    Body: str = Form(...),
+    ProfileName: str = Form("Cliente"),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+    _: None = Depends(verify_twilio_webhook),
+) -> Response:
     """
-    Recebe eventos do Evolution API.
-    Filtra apenas mensagens recebidas (messages.upsert, fromMe=false).
+    Recebe eventos da Twilio WhatsApp.
+    Payload é form-urlencoded com campos From, Body e ProfileName.
 
     Roteamento:
     - Cliente com renovação ativa (status 'contacted') → Agente de Renovação
     - Demais mensagens → Agente de Sinistros / Orquestrador (M2)
     """
-    if payload.event != "messages.upsert":
-        return {"status": "ignored"}
+    phone = _parse_twilio_phone(From)
+    text = Body.strip()
+    client_name = ProfileName or "Cliente"
 
-    if payload.data is None or payload.data.key.fromMe:
-        return {"status": "ignored"}
-
-    phone = payload.data.key.remoteJid.replace("@s.whatsapp.net", "")
-    client_name = payload.data.pushName or "Cliente"
-    text = (payload.data.message.conversation or "") if payload.data.message else ""
-
-    if not text.strip():
-        return {"status": "ignored"}
+    if not text:
+        return Response(content="", media_type="text/xml")
 
     logger.info("Mensagem de %s (%s): %s", phone, client_name, text[:80])
+    await _route_message(phone=phone, client_name=client_name, text=text, db=db)
 
+    # Twilio espera resposta TwiML (pode ser vazia)
+    return Response(content="<Response/>", media_type="text/xml")
+
+
+async def _route_message(phone: str, client_name: str, text: str, db: AsyncSession) -> None:
+    """Roteia mensagem recebida para o agente adequado."""
     # ---------------------------------------------------------------------------
     # Comandos do corretor (apenas de BROKER_NOTIFICATION_PHONE)
     # ---------------------------------------------------------------------------
     if phone == settings.broker_notification_phone:
         cmd_cadastrar = _CMD_CADASTRAR.match(text.strip())
         if cmd_cadastrar:
-            target_phone = cmd_cadastrar.group(1)
-            await _handle_broker_cadastrar(target_phone)
-            return {"status": "command_cadastrar", "target": target_phone}
+            await _handle_broker_cadastrar(cmd_cadastrar.group(1))
+            return
 
         cmd_cancelar = _CMD_CANCELAR.match(text.strip())
         if cmd_cancelar:
-            target_phone = cmd_cancelar.group(1)
-            await _handle_broker_cancelar(target_phone)
-            return {"status": "command_cancelar", "target": target_phone}
+            await _handle_broker_cancelar(cmd_cancelar.group(1))
+            return
 
     # ---------------------------------------------------------------------------
     # Onboarding ativo para este cliente? (M3)
@@ -136,8 +114,7 @@ async def whatsapp_webhook(
             await _resume_onboarding(phone=phone, text=text, existing_state=onboarding_state)
         except Exception:
             logger.exception("Erro ao retomar onboarding para %s", phone)
-            return {"status": "error_onboarding", "phone": phone}
-        return {"status": "routed_to_onboarding", "phone": phone}
+        return
 
     # Verifica se há renovação ativa para o cliente (M4)
     result = await db.execute(
@@ -166,19 +143,15 @@ async def whatsapp_webhook(
                     "notifications_sent": [],
                     "errors": [],
                 })
-                return {"status": "routed_to_renewal", "phone": phone}
             except Exception:
                 logger.exception("Erro ao processar renovação para %s", phone)
-                return {"status": "error_renewal", "phone": phone}
+            return
 
     # Sem renovação ativa — roteia para Agente de Sinistros / Orquestrador (M2)
     try:
         await _handle_message(phone=phone, client_name=client_name, text=text)
     except Exception as exc:
         logger.error("Erro ao processar mensagem de %s: %s", phone, exc, exc_info=True)
-        return {"status": "error"}
-
-    return {"status": "received", "phone": phone}
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +180,7 @@ async def _handle_broker_cadastrar(target_phone: str) -> None:
         "policy_data": {},
         "client_data_complete": False,
         "policy_data_complete": False,
+        "policy_transition_done": False,
         "validation_errors": [],
         "retry_count": 0,
         "client_id": "",
@@ -267,6 +241,7 @@ async def _start_onboarding_pull(phone: str, text: str) -> None:
         "policy_data": {},
         "client_data_complete": False,
         "policy_data_complete": False,
+        "policy_transition_done": False,
         "validation_errors": [],
         "retry_count": 0,
         "client_id": "",
@@ -305,14 +280,12 @@ async def _handle_message(phone: str, client_name: str, text: str) -> None:
         if intent_state.get("intent") == "onboarding":
             await _start_onboarding_pull(phone=phone, text=text)
         else:
-            logger.info(
-                "Cliente não cadastrado: %s — intenção não identificada como onboarding", phone
-            )
-            await notification_service.send_whatsapp_message(
-                phone,
-                "Olá! Para que possamos ajudá-lo, por favor entre em contato com a corretora "
-                "para cadastrar seus dados. 😊",
-            )
+            logger.info("Cliente não cadastrado: %s — acionando handoff humano", phone)
+            await human_handoff_node({
+                "message": text,
+                "client_phone": phone,
+                "client_name": client_name,
+            })
         return
 
     client_id = client["id"]

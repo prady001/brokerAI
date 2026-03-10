@@ -152,7 +152,8 @@ async def collect_client_node(state: dict) -> dict:
         "email": extracted.get("email") or prev.get("email"),
     }
 
-    error_context = first_contact_hint
+    context_hint = first_contact_hint
+    error_context = ""
 
     # Valida CPF se presente
     cpf = client_data.get("cpf") or ""
@@ -162,6 +163,9 @@ async def collect_client_node(state: dict) -> dict:
             "O CPF informado parece inválido. "
             "Peça que o cliente confira e informe novamente."
         )
+
+    if not error_context:
+        error_context = context_hint
 
     # Recalcula missing com base nos campos obrigatórios (ignora sugestão do LLM)
     # email é opcional — não bloqueia o fluxo
@@ -176,7 +180,7 @@ async def collect_client_node(state: dict) -> dict:
 
     # Gera pergunta para o campo faltante
     question_prompt = GENERATE_CLIENT_QUESTION_PROMPT.format(
-        missing_fields=", ".join(missing),
+        missing_fields=missing[0],
         messages=messages_text,
         error_context=error_context,
     )
@@ -248,16 +252,12 @@ async def collect_policy_node(state: dict) -> dict:
         }
 
     # Se é a primeira pergunta sobre apólice, dar contexto de transição
-    has_policy_question = any(
-        "apólice" in m.get("content", "").lower() or
-        "seguradora" in m.get("content", "").lower()
-        for m in messages if m.get("role") == "assistant"
-    )
-    if not has_policy_question:
-        error_context = "Dados pessoais já coletados. Agora colete os dados da apólice de seguro."
+    policy_transition_done = state.get("policy_transition_done", False)
+    if not policy_transition_done:
+        error_context = "Dados pessoais já coletados. Faça uma transição natural para coletar os dados do seguro do cliente."
 
     question_prompt = GENERATE_POLICY_QUESTION_PROMPT.format(
-        missing_fields=", ".join(missing),
+        missing_fields=missing[0],
         messages=messages_text,
         error_context=error_context,
     )
@@ -273,6 +273,7 @@ async def collect_policy_node(state: dict) -> dict:
     return {
         "policy_data": policy_data,
         "policy_data_complete": False,
+        "policy_transition_done": True,
         "messages": updated_messages,
         "status": "collecting_policy",
     }
@@ -331,12 +332,10 @@ async def handle_confirmation_node(state: dict) -> dict:
         return {"confirmation_status": "confirmed"}
 
     if words & rejected_words:
-        msg = "Tudo bem! Vamos recomeçar a coleta. Pode me confirmar seu nome completo?"
+        msg = "Tudo bem! Me diga o que precisa corrigir e o valor certo. Pode digitar normalmente."
         await notification_service.send_whatsapp_message(client_phone, msg)
         return {
             "confirmation_status": "rejected",
-            "client_data": {},
-            "policy_data": {},
             "client_data_complete": False,
             "policy_data_complete": False,
             "messages": messages + [{"role": "assistant", "content": msg}],
