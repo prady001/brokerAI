@@ -1,9 +1,16 @@
 """
 FastAPI app principal do brokerAI.
 """
+import logging
+
 from fastapi import FastAPI
 
 from api.routes import admin, scheduler, webhook
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:     %(name)s - %(message)s",
+)
 
 app = FastAPI(
     title="brokerAI",

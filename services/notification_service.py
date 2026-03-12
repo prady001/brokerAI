@@ -1,5 +1,5 @@
 """
-NotificationService — Envio de mensagens via WhatsApp (Evolution API).
+NotificationService — Envio de mensagens via WhatsApp (Twilio).
 """
 import logging
 
@@ -9,27 +9,39 @@ from models.config import settings
 
 logger = logging.getLogger(__name__)
 
+_TWILIO_API_URL = "https://api.twilio.com/2010-04-01/Accounts"
+
+
+def _whatsapp_number(phone: str) -> str:
+    """Converte número armazenado (5511999999999) para formato Twilio (whatsapp:+5511999999999)."""
+    if phone.startswith("whatsapp:"):
+        return phone
+    return f"whatsapp:+{phone}"
+
 
 async def send_whatsapp_message(phone: str, message: str) -> bool:
     """
-    Envia mensagem de texto via Evolution API.
+    Envia mensagem de texto via Twilio WhatsApp API.
     phone: número no formato 5511999999999 (DDI + DDD + número, sem espaços ou símbolos).
     """
-    url = (
-        f"{settings.evolution_server_url}/message/sendText"
-        f"/{settings.evolution_instance_name}"
-    )
-    headers = {
-        "apikey": settings.evolution_api_key,
-        "Content-Type": "application/json",
+    if not settings.twilio_account_sid or not settings.twilio_auth_token:
+        logger.warning("Twilio não configurado — mensagem não enviada para %s", phone)
+        return False
+
+    url = f"{_TWILIO_API_URL}/{settings.twilio_account_sid}/Messages.json"
+    data = {
+        "From": settings.twilio_whatsapp_from,
+        "To": _whatsapp_number(phone),
+        "Body": message,
     }
-    payload = {
-        "number": phone,
-        "textMessage": {"text": message},
-    }
+
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            response = await client.post(url, json=payload, headers=headers)
+            response = await client.post(
+                url,
+                data=data,
+                auth=(settings.twilio_account_sid, settings.twilio_auth_token),
+            )
             response.raise_for_status()
             logger.info("WhatsApp enviado para %s", phone)
             return True

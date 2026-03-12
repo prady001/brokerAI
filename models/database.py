@@ -83,6 +83,8 @@ class Client(Base):
     phone_whatsapp = Column(String)
     email          = Column(String)
     birth_date     = Column(Date)
+    cep            = Column(String(9))              # CEP formatado (ex: 01310-100)
+    address        = Column(String)                 # endereço completo
     created_at     = Column(DateTime, default=_now)
     updated_at     = Column(DateTime, default=_now, onupdate=_now)
 
@@ -98,6 +100,7 @@ class Policy(Base):
         Enum("auto", "life", "home", "travel", "business", name="policy_type")
     )
     item_description = Column(String)       # ex: "Toyota Yaris 1.3 Flex / ABC1234"
+    minor_driver     = Column(Boolean)      # há menor de idade que dirige? (seguro auto)
     status           = Column(
         Enum("active", "expired", "cancelled", name="policy_status"), default="active"
     )

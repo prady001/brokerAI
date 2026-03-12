@@ -123,6 +123,8 @@ async def create_client(
     cpf_cnpj: str,
     phone_whatsapp: str,
     email: str | None = None,
+    cep: str | None = None,
+    address: str | None = None,
 ) -> str:
     """
     Cria o cliente no banco.
@@ -140,6 +142,8 @@ async def create_client(
             cpf_cnpj=format_cpf(cpf_cnpj),
             phone_whatsapp=phone_whatsapp,
             email=email,
+            cep=cep,
+            address=address,
         )
         session.add(client)
         await session.commit()
@@ -155,6 +159,7 @@ async def create_policy(
     end_date: str,
     start_date: str | None = None,
     seller_phone: str | None = None,
+    minor_driver: bool | None = None,
 ) -> str:
     """
     Cria a apólice no banco vinculada ao cliente.
@@ -188,6 +193,7 @@ async def create_policy(
             start_date=start,
             end_date=end,
             seller_phone=seller_phone,
+            minor_driver=minor_driver,
             imported_from="manual",
         )
         session.add(policy)

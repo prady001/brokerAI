@@ -189,7 +189,7 @@ class RenewalService:
 
         expiry = renewal.expiry_date
         if expiry is not None:
-            expiry_dt = datetime(expiry.year, expiry.month, expiry.day, 8, 0, tzinfo=UTC)
+            expiry_dt = datetime(expiry.year, expiry.month, expiry.day, 8, 0)
             count = renewal.contact_count
 
             if count == 1:

@@ -17,8 +17,14 @@ from agents.llm import get_llm as _get_llm_factory
 from agents.onboarding.prompts import (
     BROKER_ESCALATION_ALERT,
     BROKER_NOTIFICATION,
+    BROKER_NOTIFICATION_MINOR_DRIVER_LINE,
+    BROKER_NOTIFICATION_POLICY_WITH,
+    BROKER_NOTIFICATION_POLICY_WITHOUT,
     CANCEL_MESSAGE,
-    CONFIRMATION_MESSAGE,
+    CONFIRMATION_MESSAGE_BASE,
+    CONFIRMATION_MINOR_DRIVER_LINE,
+    CONFIRMATION_POLICY_WITH,
+    CONFIRMATION_POLICY_WITHOUT,
     ESCALATION_MESSAGE,
     EXTRACT_CLIENT_DATA_PROMPT,
     EXTRACT_POLICY_DATA_PROMPT,
@@ -150,6 +156,8 @@ async def collect_client_node(state: dict) -> dict:
         "full_name": extracted.get("full_name") or prev.get("full_name"),
         "cpf": extracted.get("cpf") or prev.get("cpf"),
         "email": extracted.get("email") or prev.get("email"),
+        "cep": extracted.get("cep") or prev.get("cep"),
+        "address": extracted.get("address") or prev.get("address"),
     }
 
     context_hint = first_contact_hint
@@ -169,7 +177,7 @@ async def collect_client_node(state: dict) -> dict:
 
     # Recalcula missing com base nos campos obrigatórios (ignora sugestão do LLM)
     # email é opcional — não bloqueia o fluxo
-    required = ["full_name", "cpf"]
+    required = ["full_name", "cpf", "cep", "address"]
     missing = [f for f in required if not client_data.get(f)]
 
     if not missing:
@@ -230,20 +238,37 @@ async def collect_policy_node(state: dict) -> dict:
     extracted = _parse_json_response(response.content)
 
     prev = state.get("policy_data", {})
+
+    def _coalesce(new_val, old_val):
+        return new_val if new_val is not None else old_val
+
     policy_data = {
+        "has_existing_policy": _coalesce(extracted.get("has_existing_policy"), prev.get("has_existing_policy")),
         "insurer": extracted.get("insurer") or prev.get("insurer"),
         "policy_type": extracted.get("policy_type") or prev.get("policy_type") or "auto",
         "item_description": extracted.get("item_description") or prev.get("item_description"),
         "policy_number": extracted.get("policy_number") or prev.get("policy_number"),
         "end_date": extracted.get("end_date") or prev.get("end_date"),
         "start_date": extracted.get("start_date") or prev.get("start_date"),
+        "minor_driver": _coalesce(extracted.get("minor_driver"), prev.get("minor_driver")),
     }
 
     error_context = ""
 
-    # Recalcula missing com base nos campos obrigatórios
-    required = ["insurer", "item_description", "policy_number", "end_date"]
+    # Campos obrigatórios dependem de has_existing_policy
+    has_existing_policy = policy_data.get("has_existing_policy")
+    if has_existing_policy is None:
+        required = ["has_existing_policy"]
+    elif has_existing_policy:
+        required = ["insurer", "item_description", "policy_number", "end_date"]
+    else:
+        required = ["insurer", "item_description"]
+
     missing = [f for f in required if not policy_data.get(f)]
+
+    # Para seguro auto: minor_driver é indispensável
+    if not missing and policy_data.get("policy_type") == "auto" and policy_data.get("minor_driver") is None:
+        missing = ["minor_driver"]
 
     if not missing:
         return {
@@ -287,19 +312,44 @@ def route_policy_collection(state: dict) -> str:
 # Confirmação dos dados
 # ---------------------------------------------------------------------------
 
+def _build_minor_driver_line(minor_driver, template: str) -> str:
+    if minor_driver is None:
+        return ""
+    return template.format(value="Sim" if minor_driver else "Não")
+
+
 async def confirm_node(state: dict) -> dict:
     """Envia resumo dos dados coletados e pede confirmação do cliente."""
     client_phone = state.get("client_phone", "")
     client_data = state.get("client_data", {})
     policy_data = state.get("policy_data", {})
 
-    msg = CONFIRMATION_MESSAGE.format(
+    has_existing = policy_data.get("has_existing_policy")
+    minor_driver_line = _build_minor_driver_line(
+        policy_data.get("minor_driver"), CONFIRMATION_MINOR_DRIVER_LINE
+    )
+
+    if has_existing:
+        policy_section = CONFIRMATION_POLICY_WITH.format(
+            insurer=policy_data.get("insurer", ""),
+            policy_number=policy_data.get("policy_number", ""),
+            item_description=policy_data.get("item_description", ""),
+            end_date=policy_data.get("end_date", ""),
+            minor_driver_line=minor_driver_line,
+        )
+    else:
+        policy_section = CONFIRMATION_POLICY_WITHOUT.format(
+            insurer=policy_data.get("insurer", ""),
+            item_description=policy_data.get("item_description", ""),
+            minor_driver_line=minor_driver_line,
+        )
+
+    msg = CONFIRMATION_MESSAGE_BASE.format(
         full_name=client_data.get("full_name", ""),
         cpf=client_data.get("cpf", ""),
-        insurer=policy_data.get("insurer", ""),
-        policy_number=policy_data.get("policy_number", ""),
-        item_description=policy_data.get("item_description", ""),
-        end_date=policy_data.get("end_date", ""),
+        cep=client_data.get("cep", ""),
+        address=client_data.get("address", ""),
+        policy_section=policy_section,
     )
     await notification_service.send_whatsapp_message(client_phone, msg)
 
@@ -380,19 +430,24 @@ async def register_node(state: dict) -> dict:
                 cpf_cnpj=client_data.get("cpf", ""),
                 phone_whatsapp=client_phone,
                 email=client_data.get("email"),
+                cep=client_data.get("cep"),
+                address=client_data.get("address"),
             )
 
-            # Cria apólice
-            policy_id = await create_policy(
-                client_id=client_id,
-                insurer_id=insurer_id,
-                policy_number=policy_data.get("policy_number", ""),
-                policy_type=policy_data.get("policy_type", "auto"),
-                item_description=policy_data.get("item_description", ""),
-                end_date=policy_data.get("end_date", ""),
-                start_date=policy_data.get("start_date"),
-                seller_phone=settings.broker_notification_phone,
-            )
+            # Cria apólice apenas se o cliente já tem seguro ativo
+            policy_id = None
+            if policy_data.get("has_existing_policy"):
+                policy_id = await create_policy(
+                    client_id=client_id,
+                    insurer_id=insurer_id,
+                    policy_number=policy_data.get("policy_number", ""),
+                    policy_type=policy_data.get("policy_type", "auto"),
+                    item_description=policy_data.get("item_description", ""),
+                    end_date=policy_data.get("end_date", ""),
+                    start_date=policy_data.get("start_date"),
+                    seller_phone=settings.broker_notification_phone,
+                    minor_driver=policy_data.get("minor_driver"),
+                )
 
             logger.info(
                 "Onboarding concluído: client_id=%s policy_id=%s phone=%s",
@@ -446,14 +501,33 @@ async def notify_seller_node(state: dict) -> dict:
     policy_data = state.get("policy_data", {})
     client_phone = state.get("client_phone", "")
 
+    has_existing = policy_data.get("has_existing_policy")
+    minor_driver_line = _build_minor_driver_line(
+        policy_data.get("minor_driver"), BROKER_NOTIFICATION_MINOR_DRIVER_LINE
+    )
+
+    if has_existing:
+        policy_section = BROKER_NOTIFICATION_POLICY_WITH.format(
+            insurer=policy_data.get("insurer", ""),
+            policy_number=policy_data.get("policy_number", ""),
+            item_description=policy_data.get("item_description", ""),
+            end_date=policy_data.get("end_date", ""),
+            minor_driver_line=minor_driver_line,
+        )
+    else:
+        policy_section = BROKER_NOTIFICATION_POLICY_WITHOUT.format(
+            insurer=policy_data.get("insurer", ""),
+            item_description=policy_data.get("item_description", ""),
+            minor_driver_line=minor_driver_line,
+        )
+
     alert = BROKER_NOTIFICATION.format(
         full_name=client_data.get("full_name", ""),
         cpf=client_data.get("cpf", ""),
         phone=client_phone,
-        insurer=policy_data.get("insurer", ""),
-        policy_number=policy_data.get("policy_number", ""),
-        item_description=policy_data.get("item_description", ""),
-        end_date=policy_data.get("end_date", ""),
+        cep=client_data.get("cep", ""),
+        address=client_data.get("address", ""),
+        policy_section=policy_section,
         registered_at=datetime.now(UTC).strftime("%d/%m/%Y às %Hh%M"),
     )
     await notification_service.send_broker_alert(alert)

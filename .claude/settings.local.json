@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "WebSearch",
+      "WebFetch(*)",
+      "Skill(*)",
+      "mcp__github__get_pull_request",
+      "mcp__github__create_pull_request"
+    ]
+  }
+}
